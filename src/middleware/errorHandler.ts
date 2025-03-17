@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import logger from '../config/logger';
 
 interface AppError extends Error {
   statusCode?: number;
@@ -14,6 +15,9 @@ export const errorHandler = (
 ) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
+
+  // Log the error
+  logger.error(err.message, { stack: err.stack });
 
   // Development error response
   if (process.env.NODE_ENV === 'development') {
@@ -39,4 +43,4 @@ export const errorHandler = (
     status: 'error',
     message: 'Bir şeyler yanlış gitti!'
   });
-}; 
+};
