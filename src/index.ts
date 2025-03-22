@@ -2,17 +2,23 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
+import WebSocketService from './services/WebSocketService';
 
 // Load environment variables
 dotenv.config();
 
 // Initialize express app
 const app = express();
+const httpServer = createServer(app);
 const port = process.env.PORT || 3000;
+
+// Initialize WebSocket service
+const wsService = WebSocketService.getInstance(httpServer);
 
 // Middleware
 app.use(helmet());
@@ -29,8 +35,8 @@ app.use('/api/users', userRoutes);
 app.use(errorHandler);
 
 // Start server
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-export default app;
+export { app, wsService };
