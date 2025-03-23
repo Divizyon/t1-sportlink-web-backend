@@ -37,25 +37,52 @@ const swaggerOptions = {
       title: 'SportLink API',
       version: '1.0.0',
       description: 'SportLink API Documentation',
+      contact: {
+        name: 'API Support',
+        email: 'support@sportlink.com',
+      },
     },
     servers: [
       {
         url: `http://localhost:${port}`,
         description: 'Development server',
       },
+      {
+        url: process.env.PRODUCTION_API_URL || 'https://api.sportlink.com',
+        description: 'Production server',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
     ],
   },
-  apis: ['./src/routes/*.ts'],
+  apis: ['./src/routes/*.ts', './src/models/*.ts'],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'SportLink API Documentation',
+}));
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'success',
     message: 'Welcome to SportLink API',
+    documentation: '/api-docs',
   });
 });
 
@@ -73,6 +100,7 @@ app.use(errorHandler);
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log(`API Documentation available at http://localhost:${port}/api-docs`);
 });
 
 export default app;
