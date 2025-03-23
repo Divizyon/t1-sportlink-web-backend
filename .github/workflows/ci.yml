@@ -1,0 +1,38 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Node.js Kurulumu
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Bağımlılıkların Yüklenmesi
+      run: npm ci
+
+    - name: Lint Kontrolü
+      run: npm run lint
+
+    - name: Test Çalıştırma
+      run: npm test
+
+    - name: Build
+      run: npm run build
+
+    - name: Build Artifacts'ı Kaydetme
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/ 
