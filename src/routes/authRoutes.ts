@@ -7,11 +7,14 @@ const router = express.Router();
 // Public routes
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
+router.get('/google', AuthController.googleAuthRedirect);
+router.get('/session/refresh', AuthController.refreshSession);
+router.post('/forgot-password', AuthController.requestPasswordReset);
 router.post('/reset-password', AuthController.resetPassword);
+router.post('/resend-verification', AuthController.resendVerificationEmail);
 
 // Protected routes
-router.use(protect);
-router.get('/me', AuthController.getCurrentUser);
-router.post('/logout', AuthController.logout);
+router.get('/me', protect, AuthController.getCurrentUser);
+router.post('/logout', protect, AuthController.logout);
 
 export default router; 

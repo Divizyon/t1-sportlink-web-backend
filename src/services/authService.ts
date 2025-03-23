@@ -3,15 +3,39 @@ import { LoginDTO } from '../models/User';
 
 export const login = async (credentials: LoginDTO) => {
   try {
+    console.log('Login attempt:', credentials.email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email: credentials.email,
       password: credentials.password,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase auth error:', error);
+      throw error;
+    }
+    
+    console.log('Login successful for:', credentials.email);
     return data;
   } catch (error) {
     console.error('Login error:', error);
+    throw error;
+  }
+};
+
+export const loginWithGoogle = async () => {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Google login error:', error);
     throw error;
   }
 };
@@ -40,7 +64,9 @@ export const getCurrentUser = async () => {
 
 export const resetPassword = async (email: string) => {
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password`,
+    });
     if (error) throw error;
     return data;
   } catch (error) {
@@ -58,6 +84,42 @@ export const updatePassword = async (newPassword: string) => {
     return data;
   } catch (error) {
     console.error('Update password error:', error);
+    throw error;
+  }
+};
+
+export const refreshSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Refresh session error:', error);
+    throw error;
+  }
+};
+
+export const getSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Get session error:', error);
+    throw error;
+  }
+};
+
+export const sendVerificationEmail = async (email: string) => {
+  try {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Send verification email error:', error);
     throw error;
   }
 }; 

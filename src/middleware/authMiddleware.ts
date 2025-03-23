@@ -1,5 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import supabase from '../config/supabase';
+import * as userService from '../services/userService';
+
+// Extend Express Request type to include user property
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+      userProfile?: any;
+    }
+  }
+}
 
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -29,11 +40,19 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       });
     }
 
-    // 3) Check if user still exists
-    // This is handled by Supabase automatically
+    // 3) Check if user still exists in our custom users table
+    const userProfile = await userService.findUserById(data.user.id);
+    
+    if (!userProfile) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu kullanıcı artık mevcut değil.'
+      });
+    }
 
     // 4) Grant access to protected route
     req.user = data.user;
+    req.userProfile = userProfile;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -46,53 +65,15 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
 // Middleware to restrict access to certain roles
 export const restrictTo = (...roles: string[]) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
-        });
-      }
-
-      // Get user role from the database
-      const { data, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', req.user.id)
-        .single();
-
-      if (error || !data) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Kullanıcı bulunamadı.'
-        });
-      }
-
-      // Check if user role is allowed
-      if (!roles.includes(data.role)) {
-        return res.status(403).json({
-          status: 'error',
-          message: 'Bu işlemi gerçekleştirmek için yetkiniz yok.'
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Role restriction error:', error);
-      return res.status(500).json({
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Check if user has required role
+    if (!req.userProfile || !roles.includes(req.userProfile.role)) {
+      return res.status(403).json({
         status: 'error',
-        message: 'Yetkilendirme sırasında bir hata oluştu.'
+        message: 'Bu işlemi gerçekleştirmek için yetkiniz yok.'
       });
     }
-  };
-};
 
-// Add user property to Request interface
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-} 
+    next();
+  };
+}; 

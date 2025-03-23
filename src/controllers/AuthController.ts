@@ -75,6 +75,19 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+export const googleAuthRedirect = async (req: Request, res: Response) => {
+  try {
+    const data = await authService.loginWithGoogle();
+    res.redirect(data.url);
+  } catch (error) {
+    console.error('Google auth redirect error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Google ile giriş yapılırken bir hata oluştu.'
+    });
+  }
+};
+
 export const logout = async (req: Request, res: Response) => {
   try {
     await authService.logout();
@@ -126,9 +139,17 @@ export const getCurrentUser = async (req: Request, res: Response) => {
   }
 };
 
-export const resetPassword = async (req: Request, res: Response) => {
+export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'E-posta adresi gereklidir.'
+      });
+    }
+    
     await authService.resetPassword(email);
     
     res.status(200).json({
@@ -136,10 +157,81 @@ export const resetPassword = async (req: Request, res: Response) => {
       message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.'
     });
   } catch (error) {
+    console.error('Request password reset error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Şifre sıfırlama bağlantısı gönderilirken bir hata oluştu.'
+    });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Yeni şifre gereklidir.'
+      });
+    }
+    
+    await authService.updatePassword(password);
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Şifreniz başarıyla güncellendi.'
+    });
+  } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Şifre sıfırlama işlemi sırasında bir hata oluştu.'
+      message: 'Şifre güncellenirken bir hata oluştu.'
+    });
+  }
+};
+
+export const refreshSession = async (req: Request, res: Response) => {
+  try {
+    const data = await authService.refreshSession();
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        session: data.session
+      }
+    });
+  } catch (error) {
+    console.error('Refresh session error:', error);
+    res.status(401).json({
+      status: 'error',
+      message: 'Oturum yenilenirken bir hata oluştu.'
+    });
+  }
+};
+
+export const resendVerificationEmail = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'E-posta adresi gereklidir.'
+      });
+    }
+    
+    await authService.sendVerificationEmail(email);
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Doğrulama bağlantısı e-posta adresinize gönderildi.'
+    });
+  } catch (error) {
+    console.error('Resend verification email error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Doğrulama bağlantısı gönderilirken bir hata oluştu.'
     });
   }
 }; 
