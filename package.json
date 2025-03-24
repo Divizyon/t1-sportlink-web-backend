@@ -8,7 +8,8 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "lint": "eslint . --ext .ts",
-    "test": "jest"
+    "test": "jest",
+    "docs": "swagger-jsdoc -d swaggerDef.js -o swagger.json && swagger-ui-express swagger.json"
   },
   "keywords": [
     "sportlink",
@@ -26,6 +27,9 @@
     "express": "^4.18.2",
     "helmet": "^7.1.0",
     "joi": "^17.11.0",
+    "winston": "^3.17.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "prisma": "^6.5.0"
   },
   "devDependencies": {

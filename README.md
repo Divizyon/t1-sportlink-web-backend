@@ -9,12 +9,13 @@ Bu proje, Sportlink web uygulamasının backend kısmıdır. TypeScript ve Supab
 - TypeScript
 - Supabase (PostgreSQL + Auth)
 - Jest (Test)
+- Docker
 
 ## Kurulum
 
 1. Projeyi klonlayın:
 ```bash
-git clone https://github.com/your-username/sportlink-web-backend.git
+git clone https://github.com/Divizyon/t1-sportlink-web-backend.git
 cd sportlink-web-backend
 ```
 
@@ -36,6 +37,31 @@ JWT_EXPIRES_IN=1d
 4. Geliştirme modunda çalıştırın:
 ```bash
 npm run dev
+```
+
+## Docker ile Çalıştırma
+
+1. Docker Desktop'ı yükleyin ve çalıştırın.
+
+2. Container'ı oluşturup çalıştırın:
+```bash
+docker-compose up
+```
+
+3. Arka planda çalıştırmak için:
+```bash
+docker-compose up -d
+```
+
+4. Container'ı durdurmak için:
+```bash
+docker-compose down
+```
+
+5. Production build için:
+```bash
+docker build -t sportlink-web-backend .
+docker run -p 3000:3000 sportlink-web-backend
 ```
 
 ## Klasör Yapısı
