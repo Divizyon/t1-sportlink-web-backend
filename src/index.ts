@@ -8,6 +8,7 @@ import { rateLimit } from './middleware/rateLimit';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
 import { errorHandler } from './middleware/errorHandler';
+import logRequest from './middleware/loggerMiddleware';
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +22,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(logRequest); // Add logRequest middleware
 
 // Apply rate limiting to auth routes
 const authLimiter = rateLimit(20, 15 * 60 * 1000); // 20 requests per 15 minutes

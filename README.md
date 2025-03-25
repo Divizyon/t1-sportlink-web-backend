@@ -66,31 +66,6 @@ docker build -t sportlink-web-backend .
 docker run -p 3000:3000 sportlink-web-backend
 ```
 
-## Kimlik Doğrulama Sistemi
-
-Uygulama, Supabase Auth kullanarak tam kapsamlı bir kimlik doğrulama sistemi sunar:
-
-### Özellikler:
-
-- **Kullanıcı Kaydı**: Email/şifre ile kayıt
-- **Giriş**: E-posta/şifre ve sosyal medya (Google) ile giriş
-- **Oturum Yönetimi**: JWT token tabanlı oturum
-- **Şifre Sıfırlama**: E-posta ile şifre sıfırlama
-- **Rol Tabanlı Erişim**: Admin, kullanıcı ve koç rolleri için yetki kontrolü
-- **E-posta Doğrulama**: Kullanıcı hesaplarının doğrulanması
-
-### Auth API Rotaları:
-
-- `POST /api/auth/register` - Yeni kullanıcı kaydı
-- `POST /api/auth/login` - Kullanıcı girişi
-- `GET /api/auth/google` - Google ile giriş
-- `POST /api/auth/logout` - Kullanıcı çıkışı
-- `GET /api/auth/me` - Mevcut kullanıcı bilgilerini getir
-- `POST /api/auth/forgot-password` - Şifre sıfırlama bağlantısı gönder
-- `POST /api/auth/reset-password` - Şifre sıfırlama
-- `POST /api/auth/resend-verification` - Doğrulama e-postasını yeniden gönder
-- `GET /api/auth/session/refresh` - Oturumu yenile
-
 ## Klasör Yapısı
 
 ```
