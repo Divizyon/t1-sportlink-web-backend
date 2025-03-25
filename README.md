@@ -10,7 +10,6 @@ Bu proje, Sportlink web uygulamasının backend kısmıdır. TypeScript ve Supab
 - Supabase (PostgreSQL + Auth)
 - Jest (Test)
 - Docker
-- Swagger (API Dokümantasyonu)
 
 ## Kurulum
 
@@ -66,49 +65,6 @@ docker-compose down
 docker build -t sportlink-web-backend .
 docker run -p 3000:3000 sportlink-web-backend
 ```
-
-## API Dokümantasyonu
-
-API dökümantasyonu Swagger UI ile sağlanmaktadır. Aşağıdaki URL üzerinden erişebilirsiniz:
-
-```
-http://localhost:3000/api-docs
-```
-
-Swagger UI, tüm API endpoint'lerini, parametrelerini, request/response şemalarını ve örnek kullanımlarını interaktif bir arayüzle sunar. Bu dokümantasyon, API'ı kullanacak frontend geliştiricileri ve diğer servisler için önemli bir kaynaktır.
-
-### Swagger UI Özellikleri:
-
-- Tüm API endpoint'lerinin detaylı açıklamaları
-- Request/response şemaları ve örnekleri
-- API'ı doğrudan test etme imkanı
-- Kod örnekleri (curl, JavaScript, Python vb.)
-- Bearer token authentication desteği
-
-## Kimlik Doğrulama Sistemi
-
-Uygulama, Supabase Auth kullanarak tam kapsamlı bir kimlik doğrulama sistemi sunar:
-
-### Özellikler:
-
-- **Kullanıcı Kaydı**: Email/şifre ile kayıt
-- **Giriş**: E-posta/şifre ve sosyal medya (Google) ile giriş
-- **Oturum Yönetimi**: JWT token tabanlı oturum
-- **Şifre Sıfırlama**: E-posta ile şifre sıfırlama
-- **Rol Tabanlı Erişim**: Admin, kullanıcı ve koç rolleri için yetki kontrolü
-- **E-posta Doğrulama**: Kullanıcı hesaplarının doğrulanması
-
-### Auth API Rotaları:
-
-- `POST /api/auth/register` - Yeni kullanıcı kaydı
-- `POST /api/auth/login` - Kullanıcı girişi
-- `GET /api/auth/google` - Google ile giriş
-- `POST /api/auth/logout` - Kullanıcı çıkışı
-- `GET /api/auth/me` - Mevcut kullanıcı bilgilerini getir
-- `POST /api/auth/forgot-password` - Şifre sıfırlama bağlantısı gönder
-- `POST /api/auth/reset-password` - Şifre sıfırlama
-- `POST /api/auth/resend-verification` - Doğrulama e-postasını yeniden gönder
-- `GET /api/auth/session/refresh` - Oturumu yenile
 
 ## Klasör Yapısı
 
