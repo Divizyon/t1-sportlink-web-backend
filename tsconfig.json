@@ -1,17 +1,7 @@
 {
   "compilerOptions": {
-<<<<<<< HEAD
-    "target": "es6",
-    "module": "commonjs",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "lib": ["es2020", "dom"]
-=======
+
+
     "target": "ES2020",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -23,7 +13,7 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
->>>>>>> 76cbe056b6d71c2afdafe3a7ba1844d6a344a614
+
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.test.ts"]

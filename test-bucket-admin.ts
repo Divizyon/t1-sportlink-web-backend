@@ -1,11 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+// .env dosyasını yükle
+dotenv.config();
 
 async function testBuckets() {
   try {
-    // UYARI: Bu değerleri gerçek anahtarınızla değiştirin
-    const supabaseUrl = 'https://gihdkqozknxxokklmqvz.supabase.co';
-    // Service role key değerini "Settings > API" bölümünden "service_role" için "Reveal" tıklayarak aldığınız değerle değiştirin
-    const supabaseServiceKey = 'BURAYA_SERVICE_ROLE_KEY_YAZIN';
+    const supabaseUrl = process.env.SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY .env dosyasında tanımlanmalıdır');
+    }
     
     console.log('Service role key kullanılıyor...');
     
