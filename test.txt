@@ -1,2 +1,0 @@
-Bu bir test dosyasıdır.
-Sportlink Storage Backend test için oluşturuldu. 

@@ -2,19 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-<<<<<<< HEAD
 import storageRoutes from './routes/storageRoutes';
-=======
-import userRoutes from './routes/userRoutes';
-import authRoutes from './routes/authRoutes';
-import { errorHandler } from './middleware/errorHandler';
-import logRequest from './middleware/loggerMiddleware';
->>>>>>> 76cbe056b6d71c2afdafe3a7ba1844d6a344a614
 
 // Load environment variables
 dotenv.config();
 
-<<<<<<< HEAD
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -111,30 +103,4 @@ process.on('uncaughtException', (error) => {
     console.log('Server beklenmeyen hata nedeniyle kapatıldı.');
     process.exit(1);
   });
-}); 
-=======
-// Initialize express app
-const app = express();
-const port = process.env.PORT || 3000;
-
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(logRequest); // Add logRequest middleware
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-
-// Error handling middleware
-app.use(errorHandler);
-
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
 });
-
-export default app;
->>>>>>> 76cbe056b6d71c2afdafe3a7ba1844d6a344a614
