@@ -27,5 +27,4 @@ jobs:
       - name: Run tests
         run: npm test # Testlerinizi çalıştırın
 
-      - name: Lint code
-        run: npm run lint # Kodunuzu kontrol edin (eğer linting aracı kullanıyorsanız)
+     
