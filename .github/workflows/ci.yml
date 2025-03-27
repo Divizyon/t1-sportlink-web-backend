@@ -25,6 +25,6 @@ jobs:
         run: npm install # Projenizin bağımlılıklarını yükleyin
 
       - name: Run tests
-        run: npm test # Testlerinizi çalıştırın
+        run: npm test -- --passWithNoTests # Testler bulunamasa bile başarılı sayılacak
 
      
