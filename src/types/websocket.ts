@@ -4,7 +4,7 @@ export interface SportEvent {
     status: 'upcoming' | 'live' | 'finished';
     homeTeam: string;
     awayTeam: string;
-    startTime: Date;
+    startTime: Date | string;
     location: string;
     details?: Record<string, any>;
 }
@@ -14,14 +14,14 @@ export interface LiveScore {
     homeScore: number;
     awayScore: number;
     period?: string;
-    timestamp: Date;
+    timestamp: Date | string;
     details?: Record<string, any>;
 }
 
 export interface RoomEvent {
     socketId: string;
     roomId: string;
-    timestamp?: Date;
+    timestamp: Date | string;
 }
 
 export interface WebSocketEvents {
@@ -35,6 +35,7 @@ export interface WebSocketEvents {
     sportEventUpdated: (event: SportEvent) => void;
     liveScoreUpdated: (score: LiveScore) => void;
     announcement: (data: { message: string }) => void;
+    error: (data: { message: string }) => void;
 
     // Sistem olayları
     connection: () => void;
