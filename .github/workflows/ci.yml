@@ -19,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '14' # Projenizin Node.js versiyonunu buraya yazın
+          node-version: '18' # Node.js 18 sürümüne yükseltildi
 
       - name: Install dependencies
         run: npm install # Projenizin bağımlılıklarını yükleyin
