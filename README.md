@@ -10,6 +10,7 @@ Bu proje, Sportlink web uygulamasının backend kısmıdır. TypeScript ve Supab
 - Supabase (PostgreSQL + Auth)
 - Jest (Test)
 - Docker
+- Swagger/OpenAPI (API Dokümantasyonu)
 
 ## Kurulum
 
@@ -92,6 +93,33 @@ src/
 ### Kullanıcılar
 - `GET /api/users` - Tüm kullanıcıları getir (sadece admin)
 - `GET /api/users/:id` - Belirli bir kullanıcıyı getir
+
+## API Dokümantasyonu
+
+Bu projede API dokümantasyonu için Swagger/OpenAPI kullanılmıştır. Swagger UI aracılığıyla API'nizi görsel olarak keşfedebilir ve test edebilirsiniz.
+
+### Swagger UI Erişimi
+
+API dokümantasyonuna aşağıdaki URL üzerinden erişebilirsiniz:
+
+```
+http://localhost:3000/api-docs
+```
+
+Dokümantasyon aşağıdaki özellikleri içerir:
+- Tüm API endpointlerinin detaylı açıklamaları
+- Request/Response şemaları
+- Örnek API çağrıları
+- Interaktif API testi yapabilme
+- Kimlik doğrulama gereksinimleri
+
+### Swagger JSON
+
+OpenAPI şemasının JSON formatına aşağıdaki URL üzerinden erişebilirsiniz:
+
+```
+http://localhost:3000/api-docs.json
+```
 
 ## Geliştirme Standartları
 

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import * as UserController from '../controllers/UserController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -59,6 +59,50 @@ router.use(protect);
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/', restrictTo('admin'), UserController.getAllUsers);
+
+/**
+ * @swagger
+ * /users/test:
+ *   get:
+ *     summary: Test API route
+ *     description: Simple test endpoint to verify the API and Swagger documentation are working correctly.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Test successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: API test successful
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: 2023-01-01T00:00:00.000Z
+ *             example:
+ *               status: success
+ *               message: API test successful
+ *               timestamp: 2023-01-01T00:00:00.000Z
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/test', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'API test successful',
+    timestamp: new Date().toISOString()
+  });
+});
 
 /**
  * @swagger

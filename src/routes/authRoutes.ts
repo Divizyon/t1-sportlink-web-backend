@@ -99,7 +99,63 @@ router.post('/login', AuthController.login);
 
 /**
  * @swagger
- * /auth/reset-password:
+ * /auth/google:
+ *   get:
+ *     summary: Google OAuth sign-in
+ *     description: Redirects the user to Google OAuth sign-in page
+ *     tags: [Auth]
+ *     responses:
+ *       302:
+ *         description: Redirect to Google sign-in page
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/google', AuthController.googleAuthRedirect);
+
+/**
+ * @swagger
+ * /auth/session/refresh:
+ *   get:
+ *     summary: Refresh authentication session
+ *     description: Refreshes the JWT token for an active session
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Session successfully refreshed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     session:
+ *                       type: object
+ *                       properties:
+ *                         access_token:
+ *                           type: string
+ *                         refresh_token:
+ *                           type: string
+ *             example:
+ *               status: success
+ *               data:
+ *                 session:
+ *                   access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                   refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/session/refresh', AuthController.refreshSession);
+
+/**
+ * @swagger
+ * /auth/forgot-password:
  *   post:
  *     summary: Request password reset
  *     description: Send a password reset link to the user's email
@@ -109,7 +165,12 @@ router.post('/login', AuthController.login);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ResetPasswordDTO'
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
  *     responses:
  *       200:
  *         description: Password reset email sent
@@ -118,24 +179,102 @@ router.post('/login', AuthController.login);
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
- *               success: true
- *               message: Password reset instructions sent to your email
- *       404:
- *         description: User not found
+ *               status: success
+ *               message: Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.
+ *       400:
+ *         description: Invalid input
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *             example:
- *               message: No user found with that email address
+ *               status: error
+ *               message: E-posta adresi gereklidir.
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post('/forgot-password', AuthController.requestPasswordReset);
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     summary: Reset password
+ *     description: Reset user password with a new one
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResetPasswordDTO'
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               status: success
+ *               message: Şifreniz başarıyla güncellendi.
+ *       400:
+ *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               status: error
+ *               message: Yeni şifre gereklidir.
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/reset-password', AuthController.resetPassword);
 
-// Protected routes
-router.use(protect);
+/**
+ * @swagger
+ * /auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     description: Resends the account verification email to the user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Verification email sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               status: success
+ *               message: Doğrulama e-postası gönderildi.
+ *       400:
+ *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               status: error
+ *               message: E-posta adresi gereklidir.
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post('/resend-verification', AuthController.resendVerificationEmail);
 
+// Protected routes
 /**
  * @swagger
  * /auth/me:
@@ -169,7 +308,7 @@ router.use(protect);
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/me', AuthController.getCurrentUser);
+router.get('/me', protect, AuthController.getCurrentUser);
 
 /**
  * @swagger
@@ -188,13 +327,13 @@ router.get('/me', AuthController.getCurrentUser);
  *             schema:
  *               $ref: '#/components/schemas/SuccessResponse'
  *             example:
- *               success: true
- *               message: Successfully logged out
+ *               status: success
+ *               message: Başarıyla çıkış yapıldı.
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.post('/logout', AuthController.logout);
+router.post('/logout', protect, AuthController.logout);
 
 export default router;
