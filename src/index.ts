@@ -3,13 +3,17 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import storageRoutes from './routes/storageRoutes';
+import userRoutes from './routes/userRoutes';
+import authRoutes from './routes/authRoutes';
+import { errorHandler } from './middleware/errorHandler';
+import logRequest from './middleware/loggerMiddleware';
+import { setupSwagger } from './middleware/swaggerMiddleware';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 // CORS ayarları
 const corsOptions = {
   origin: '*', // Tüm originlere izin ver
@@ -19,7 +23,12 @@ const corsOptions = {
 
 // Helmet ayarları
 const helmetOptions = {
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "img-src": ["'self'", "data:", "https:"]
+    }
+  },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false,
   crossOriginOpenerPolicy: false
@@ -28,8 +37,15 @@ const helmetOptions = {
 // Middleware sırası önemli
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(helmet(helmetOptions)); // Configure helmet to allow swagger-ui images
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors(corsOptions));
 app.use(helmet(helmetOptions));
+
+// Setup Swagger documentation
+setupSwagger(app);
 
 // Routes
 app.use('/api/storage', storageRoutes);
@@ -80,11 +96,14 @@ app.use((req: express.Request, res: express.Response) => {
 });
 
 // Start server
+
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server ${PORT} portunda çalışıyor 🚀!`);
   console.log(`Ana sayfa: http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Storage API: http://localhost:${PORT}/api/storage/test`);
+  console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+});
 });
 
 // Ctrl+C ile düzgün kapanma için işleyici
