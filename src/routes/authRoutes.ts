@@ -7,241 +7,194 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: Authentication
- *   description: User authentication endpoints
+ *   name: Auth
+ *   description: Authentication operations
  */
 
 /**
  * @swagger
- * /api/auth/register:
+ * /auth/register:
  *   post:
  *     summary: Register a new user
- *     tags: [Authentication]
+ *     description: Creates a new user account with the provided information
+ *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *               - first_name
- *               - last_name
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email
- *               password:
- *                 type: string
- *                 format: password
- *                 description: User's password
- *               first_name:
- *                 type: string
- *                 description: User's first name
- *               last_name:
- *                 type: string
- *                 description: User's last name
- *               role:
- *                 type: string
- *                 enum: [admin, user, coach]
- *                 description: User's role (defaults to 'user')
+ *             $ref: '#/components/schemas/CreateUserDTO'
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: User successfully registered
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *             example:
+ *               user:
+ *                 id: 550e8400-e29b-41d4-a716-446655440000
+ *                 email: user@example.com
+ *                 first_name: John
+ *                 last_name: Doe
+ *                 role: user
+ *                 created_at: 2023-01-01T00:00:00.000Z
+ *                 updated_at: 2023-01-01T00:00:00.000Z
+ *               token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       400:
- *         description: Email already in use or invalid input
+ *         description: Invalid input or email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               message: Email already in use
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/register', AuthController.register);
 
 /**
  * @swagger
- * /api/auth/login:
+ * /auth/login:
  *   post:
- *     summary: Login with email and password
- *     tags: [Authentication]
+ *     summary: Log in a user
+ *     description: Authenticate a user and return a JWT token
+ *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email
- *               password:
- *                 type: string
- *                 format: password
- *                 description: User's password
+ *             $ref: '#/components/schemas/LoginDTO'
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: User successfully logged in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *             example:
+ *               user:
+ *                 id: 550e8400-e29b-41d4-a716-446655440000
+ *                 email: user@example.com
+ *                 first_name: John
+ *                 last_name: Doe
+ *                 role: user
+ *                 created_at: 2023-01-01T00:00:00.000Z
+ *                 updated_at: 2023-01-01T00:00:00.000Z
+ *               token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *       401:
  *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               message: Invalid email or password
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/login', AuthController.login);
 
 /**
  * @swagger
- * /api/auth/google:
- *   get:
- *     summary: Login with Google
- *     tags: [Authentication]
- *     responses:
- *       302:
- *         description: Redirects to Google authentication
- *       500:
- *         description: Server error
- */
-router.get('/google', AuthController.googleAuthRedirect);
-
-/**
- * @swagger
- * /api/auth/session/refresh:
- *   get:
- *     summary: Refresh the user session
- *     tags: [Authentication]
- *     responses:
- *       200:
- *         description: Session refreshed successfully
- *       401:
- *         description: Invalid or expired session
- *       500:
- *         description: Server error
- */
-router.get('/session/refresh', AuthController.refreshSession);
-
-/**
- * @swagger
- * /api/auth/forgot-password:
+ * /auth/reset-password:
  *   post:
  *     summary: Request password reset
- *     tags: [Authentication]
+ *     description: Send a password reset link to the user's email
+ *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email
+ *             $ref: '#/components/schemas/ResetPasswordDTO'
  *     responses:
  *       200:
  *         description: Password reset email sent
- *       400:
- *         description: Email is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               success: true
+ *               message: Password reset instructions sent to your email
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               message: No user found with that email address
  *       500:
- *         description: Server error
- */
-router.post('/forgot-password', AuthController.requestPasswordReset);
-
-/**
- * @swagger
- * /api/auth/reset-password:
- *   post:
- *     summary: Reset password with token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - password
- *             properties:
- *               password:
- *                 type: string
- *                 format: password
- *                 description: New password
- *     responses:
- *       200:
- *         description: Password updated successfully
- *       400:
- *         description: Password is required
- *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/reset-password', AuthController.resetPassword);
 
-/**
- * @swagger
- * /api/auth/resend-verification:
- *   post:
- *     summary: Resend verification email
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email
- *     responses:
- *       200:
- *         description: Verification email sent
- *       400:
- *         description: Email is required
- *       500:
- *         description: Server error
- */
-router.post('/resend-verification', AuthController.resendVerificationEmail);
+// Protected routes
+router.use(protect);
 
 /**
  * @swagger
- * /api/auth/me:
+ * /auth/me:
  *   get:
  *     summary: Get current user information
- *     tags: [Authentication]
+ *     description: Retrieve the currently authenticated user's profile
+ *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *             example:
+ *               user:
+ *                 id: 550e8400-e29b-41d4-a716-446655440000
+ *                 email: user@example.com
+ *                 first_name: John
+ *                 last_name: Doe
+ *                 role: user
+ *                 created_at: 2023-01-01T00:00:00.000Z
+ *                 updated_at: 2023-01-01T00:00:00.000Z
  *       401:
- *         description: Not authenticated
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/me', protect, AuthController.getCurrentUser);
+router.get('/me', AuthController.getCurrentUser);
 
 /**
  * @swagger
- * /api/auth/logout:
+ * /auth/logout:
  *   post:
- *     summary: Logout the current user
- *     tags: [Authentication]
+ *     summary: Log out a user
+ *     description: Invalidate the user's current session token
+ *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Logout successful
+ *         description: User successfully logged out
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
+ *             example:
+ *               success: true
+ *               message: Successfully logged out
  *       401:
- *         description: Not authenticated
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
-router.post('/logout', protect, AuthController.logout);
+router.post('/logout', AuthController.logout);
 
-export default router; 
+export default router;

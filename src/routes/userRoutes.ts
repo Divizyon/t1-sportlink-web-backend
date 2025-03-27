@@ -8,136 +8,104 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Users
- *   description: User management endpoints
+ *   description: User management operations
  */
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     User:
- *       type: object
- *       required:
- *         - id
- *         - email
- *         - first_name
- *         - last_name
- *       properties:
- *         id:
- *           type: string
- *           format: uuid
- *           description: The auto-generated user ID
- *         email:
- *           type: string
- *           format: email
- *           description: User's email address
- *         first_name:
- *           type: string
- *           description: User's first name
- *         last_name:
- *           type: string
- *           description: User's last name
- *         role:
- *           type: string
- *           enum: [admin, user, coach]
- *           description: User's role
- *         created_at:
- *           type: string
- *           format: date-time
- *           description: User creation timestamp
- *         updated_at:
- *           type: string
- *           format: date-time
- *           description: User last update timestamp
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- */
-
-// Protect all routes
+// All user routes are protected
 router.use(protect);
 
 /**
  * @swagger
- * /api/users:
+ * /users:
  *   get:
  *     summary: Get all users
+ *     description: Retrieve a list of all users. Only accessible to administrators.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of all users
+ *         description: A list of users
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 results:
- *                   type: integer
- *                   description: Number of users returned
- *                 data:
- *                   type: object
- *                   properties:
- *                     users:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/User'
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *             example:
+ *               users:
+ *                 - id: 550e8400-e29b-41d4-a716-446655440000
+ *                   email: admin@example.com
+ *                   first_name: Admin
+ *                   last_name: User
+ *                   role: admin
+ *                   created_at: 2023-01-01T00:00:00.000Z
+ *                   updated_at: 2023-01-01T00:00:00.000Z
+ *                 - id: 550e8400-e29b-41d4-a716-446655440001
+ *                   email: user@example.com
+ *                   first_name: John
+ *                   last_name: Doe
+ *                   role: user
+ *                   created_at: 2023-01-02T00:00:00.000Z
+ *                   updated_at: 2023-01-02T00:00:00.000Z
  *       401:
- *         description: Not authenticated
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Not authorized (admin only)
+ *         $ref: '#/components/responses/ForbiddenError'
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/', restrictTo('admin'), UserController.getAllUsers);
 
 /**
  * @swagger
- * /api/users/{id}:
+ * /users/{id}:
  *   get:
- *     summary: Get user by ID
+ *     summary: Get a user by ID
+ *     description: Retrieve detailed information about a specific user. Users can only access their own profile, while admins can access any profile.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
+ *         required: true
  *         schema:
  *           type: string
  *           format: uuid
- *         required: true
- *         description: User ID
+ *         description: Unique identifier of the user
+ *         example: 550e8400-e29b-41d4-a716-446655440000
  *     responses:
  *       200:
- *         description: User found
+ *         description: User details retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       $ref: '#/components/schemas/User'
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *             example:
+ *               user:
+ *                 id: 550e8400-e29b-41d4-a716-446655440000
+ *                 email: user@example.com
+ *                 first_name: John
+ *                 last_name: Doe
+ *                 role: user
+ *                 created_at: 2023-01-01T00:00:00.000Z
+ *                 updated_at: 2023-01-01T00:00:00.000Z
  *       401:
- *         description: Not authenticated
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Not authorized
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: User not found
+ *         $ref: '#/components/responses/NotFoundError'
  *       500:
- *         description: Server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/:id', restrictTo('admin', 'user', 'coach'), UserController.getUserById);
+router.get('/:id', UserController.getUserById);
 
-export default router; 
+export default router;
