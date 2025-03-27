@@ -3,6 +3,12 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+package-lock.json
+
+# Builds
+dist/
+build/
+coverage/
 
 # Environment variables
 .env
@@ -10,23 +16,24 @@ yarn-error.log
 .env.development
 .env.test
 .env.production
-
-# Build output
-dist/
-build/
-
-# Coverage directory
-coverage/
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
 logs/
 *.log
 
-# IDE specific files
+# Editor directories and files
 .idea/
 .vscode/
 *.swp
 *.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # OS specific files
 .DS_Store
@@ -34,4 +41,4 @@ Thumbs.db
 
 # Docker
 .docker/
-docker-compose.override.yml 
+docker-compose.override.yml
