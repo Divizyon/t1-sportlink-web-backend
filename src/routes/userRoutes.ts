@@ -16,7 +16,7 @@ router.use(protect);
 
 /**
  * @swagger
- * /users:
+ * /api/users:
  *   get:
  *     summary: Get all users
  *     description: Retrieve a list of all users. Only accessible to administrators.
@@ -62,7 +62,7 @@ router.get('/', restrictTo('admin'), UserController.getAllUsers);
 
 /**
  * @swagger
- * /users/test:
+ * /api/users/test:
  *   get:
  *     summary: Test API route
  *     description: Simple test endpoint to verify the API and Swagger documentation are working correctly.
@@ -106,7 +106,7 @@ router.get('/test', (req: Request, res: Response) => {
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/users/{id}:
  *   get:
  *     summary: Get a user by ID
  *     description: Retrieve detailed information about a specific user. Users can only access their own profile, while admins can access any profile.

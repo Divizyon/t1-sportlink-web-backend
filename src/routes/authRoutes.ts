@@ -13,7 +13,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /auth/register:
+ * /api/auth/register:
  *   post:
  *     summary: Register a new user
  *     description: Creates a new user account with the provided information
@@ -56,7 +56,7 @@ router.post('/register', AuthController.register);
 
 /**
  * @swagger
- * /auth/login:
+ * /api/auth/login:
  *   post:
  *     summary: Log in a user
  *     description: Authenticate a user and return a JWT token
@@ -99,7 +99,7 @@ router.post('/login', AuthController.login);
 
 /**
  * @swagger
- * /auth/google:
+ * /api/auth/google:
  *   get:
  *     summary: Google OAuth sign-in
  *     description: Redirects the user to Google OAuth sign-in page
@@ -114,7 +114,7 @@ router.get('/google', AuthController.googleAuthRedirect);
 
 /**
  * @swagger
- * /auth/session/refresh:
+ * /api/auth/session/refresh:
  *   get:
  *     summary: Refresh authentication session
  *     description: Refreshes the JWT token for an active session
@@ -155,7 +155,7 @@ router.get('/session/refresh', AuthController.refreshSession);
 
 /**
  * @swagger
- * /auth/forgot-password:
+ * /api/auth/forgot-password:
  *   post:
  *     summary: Request password reset
  *     description: Send a password reset link to the user's email
@@ -197,7 +197,7 @@ router.post('/forgot-password', AuthController.requestPasswordReset);
 
 /**
  * @swagger
- * /auth/reset-password:
+ * /api/auth/reset-password:
  *   post:
  *     summary: Reset password
  *     description: Reset user password with a new one
@@ -234,7 +234,7 @@ router.post('/reset-password', AuthController.resetPassword);
 
 /**
  * @swagger
- * /auth/resend-verification:
+ * /api/auth/resend-verification:
  *   post:
  *     summary: Resend verification email
  *     description: Resends the account verification email to the user
@@ -277,7 +277,7 @@ router.post('/resend-verification', AuthController.resendVerificationEmail);
 // Protected routes
 /**
  * @swagger
- * /auth/me:
+ * /api/auth/me:
  *   get:
  *     summary: Get current user information
  *     description: Retrieve the currently authenticated user's profile
@@ -312,7 +312,7 @@ router.get('/me', protect, AuthController.getCurrentUser);
 
 /**
  * @swagger
- * /auth/logout:
+ * /api/auth/logout:
  *   post:
  *     summary: Log out a user
  *     description: Invalidate the user's current session token

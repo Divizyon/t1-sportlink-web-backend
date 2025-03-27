@@ -34,10 +34,10 @@ export const setupSwagger = (app: express.Application): void => {
       components: {
         securitySchemes: {
           bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-            description: 'JWT tabanlı kimlik doğrulama. Tokenınızı "Bearer YOUR_TOKEN" formatında ekleyin.',
+            type: 'apiKey',
+            in: 'header',
+            name: 'Authorization',
+            description: 'API token\'ınızı doğrudan girebilirsiniz. "Bearer" öneki otomatik olarak eklenecektir.',
           },
         },
         responses: {
@@ -299,7 +299,28 @@ export const setupSwagger = (app: express.Application): void => {
   };
 
   // Swagger doküman oluşturma
-  const swaggerSpec = swaggerJsdoc(swaggerOptions);
+  const swaggerSpec = swaggerJsdoc(swaggerOptions) as { paths?: Record<string, any> };
+  
+  // API yollarını düzeltme - Route'ların başına /api eklemek
+  if (swaggerSpec && swaggerSpec.paths) {
+    const updatedPaths: Record<string, any> = {};
+    
+    // Tüm yolları döngüyle gezerek düzelt
+    Object.keys(swaggerSpec.paths).forEach(path => {
+      // Eğer path /api ile başlamıyorsa ekle
+      if (!path.startsWith('/api')) {
+        // Örneğin: "/auth/login" -> "/api/auth/login"
+        const newPath = `/api${path}`;
+        updatedPaths[newPath] = swaggerSpec.paths![path];
+      } else {
+        // Zaten /api ile başlıyorsa olduğu gibi bırak
+        updatedPaths[path] = swaggerSpec.paths![path];
+      }
+    });
+    
+    // Orijinal paths'i güncelle
+    swaggerSpec.paths = updatedPaths;
+  }
 
   // Swagger UI özelleştirmeleri
   const swaggerUiOptions = {
@@ -315,13 +336,23 @@ export const setupSwagger = (app: express.Application): void => {
         activate: true,
         theme: 'agate',
       },
+      persistAuthorization: true,
     },
   };
 
   // Swagger endpointlerini ayarlama
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
+  
+  // API isteklerine middleware - Bearer token ekleme
+  app.use('/api', (req: Request, res: Response, next: express.NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && !authHeader.startsWith('Bearer ')) {
+      req.headers.authorization = `Bearer ${authHeader}`;
+    }
+    next();
+  });
 
-  // Swagger JSON formatında APi tanımını sunma
+  // Swagger JSON formatında API tanımını sunma
   app.get('/api-docs.json', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
