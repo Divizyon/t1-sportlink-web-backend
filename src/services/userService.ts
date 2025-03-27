@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+import supabase, { supabaseAdmin } from '../config/supabase';
 import { User, CreateUserDTO } from '../models/User';
 
 export const findUserById = async (id: string): Promise<User | null> => {
@@ -35,10 +35,11 @@ export const findUserByEmail = async (email: string): Promise<User | null> => {
 
 export const createUser = async (userData: CreateUserDTO): Promise<User | null> => {
   try {
-    // First, create the auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // First, create the auth user with admin privileges to ensure it works
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
+      email_confirm: true
     });
 
     if (authError) throw authError;

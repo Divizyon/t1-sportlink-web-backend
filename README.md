@@ -30,8 +30,10 @@ PORT=3000
 NODE_ENV=development
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
 JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=1d
+JWT_EXPIRES_IN=3600
+FRONTEND_URL=http://localhost:5173
 ```
 
 4. Geliştirme modunda çalıştırın:

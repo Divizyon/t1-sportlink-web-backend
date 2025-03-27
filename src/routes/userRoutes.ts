@@ -4,13 +4,13 @@ import { protect, restrictTo } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// All user routes are protected
+// Protect all routes
 router.use(protect);
 
-// Routes accessible only to admins
+// Admin only routes
 router.get('/', restrictTo('admin'), UserController.getAllUsers);
 
-// Routes accessible to the user and admins
-router.get('/:id', UserController.getUserById);
+// User and admin routes
+router.get('/:id', restrictTo('admin', 'user', 'coach'), UserController.getUserById);
 
 export default router; 
