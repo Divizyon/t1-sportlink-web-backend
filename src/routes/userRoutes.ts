@@ -19,10 +19,36 @@ router.use(protect);
  * /api/users:
  *   get:
  *     summary: Get all users
- *     description: Retrieve a list of all users. Only accessible to administrators.
+ *     description: Retrieve a list of all users. Accessible to all authenticated users.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Sayfa başına gösterilecek kullanıcı sayısı
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Ad, soyad veya e-posta ile arama yapar
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *         description: Belirli bir role sahip kullanıcıları filtreler
  *     responses:
  *       200:
  *         description: A list of users
@@ -31,34 +57,56 @@ router.use(protect);
  *             schema:
  *               type: object
  *               properties:
- *                 users:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/User'
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 2
+ *                 total:
+ *                   type: integer
+ *                   example: 25
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 3
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/User'
  *             example:
- *               users:
- *                 - id: 550e8400-e29b-41d4-a716-446655440000
- *                   email: admin@example.com
- *                   first_name: Admin
- *                   last_name: User
- *                   role: admin
- *                   created_at: 2023-01-01T00:00:00.000Z
- *                   updated_at: 2023-01-01T00:00:00.000Z
- *                 - id: 550e8400-e29b-41d4-a716-446655440001
- *                   email: user@example.com
- *                   first_name: John
- *                   last_name: Doe
- *                   role: user
- *                   created_at: 2023-01-02T00:00:00.000Z
- *                   updated_at: 2023-01-02T00:00:00.000Z
+ *               status: success
+ *               results: 2
+ *               total: 25
+ *               page: 1
+ *               totalPages: 3
+ *               data:
+ *                 users:
+ *                   - id: 550e8400-e29b-41d4-a716-446655440000
+ *                     email: admin@example.com
+ *                     first_name: Admin
+ *                     last_name: User
+ *                     role: admin
+ *                     created_at: 2023-01-01T00:00:00.000Z
+ *                     updated_at: 2023-01-01T00:00:00.000Z
+ *                   - id: 550e8400-e29b-41d4-a716-446655440001
+ *                     email: user@example.com
+ *                     first_name: John
+ *                     last_name: Doe
+ *                     role: user
+ *                     created_at: 2023-01-02T00:00:00.000Z
+ *                     updated_at: 2023-01-02T00:00:00.000Z
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/', restrictTo('admin'), UserController.getAllUsers);
+router.get('/', UserController.getAllUsers);
 
 /**
  * @swagger

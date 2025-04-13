@@ -3,11 +3,19 @@ import * as userService from '../services/userService';
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const users = await userService.getAllUsers();
+    const page = req.query.page ? parseInt(req.query.page as string) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+    const search = req.query.search as string | undefined;
+    const role = req.query.role as string | undefined;
+    
+    const { users, total } = await userService.getAllUsers({ page, limit, search, role });
     
     res.status(200).json({
       status: 'success',
       results: users.length,
+      total: total,
+      page: page,
+      totalPages: Math.ceil(total / limit),
       data: {
         users
       }

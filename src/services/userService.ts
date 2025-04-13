@@ -56,6 +56,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
         email: userData.email,
         first_name: userData.first_name,
         last_name: userData.last_name,
+        phone_number: userData.phone_number,
         role: userData.role || 'user',
       })
       .select()
@@ -69,16 +70,54 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
   }
 };
 
-export const getAllUsers = async (): Promise<User[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*');
+interface GetAllUsersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+}
 
+interface GetAllUsersResult {
+  users: User[];
+  total: number;
+}
+
+export const getAllUsers = async (params?: GetAllUsersParams): Promise<GetAllUsersResult> => {
+  try {
+    const { page = 1, limit = 10, search, role } = params || {};
+    const offset = (page - 1) * limit;
+    
+    // Start with the basic query
+    let query = supabase.from('users').select('*', { count: 'exact' });
+    
+    // Add search condition if provided
+    if (search) {
+      query = query.or(
+        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`
+      );
+    }
+    
+    // Add role filter if provided
+    if (role) {
+      query = query.eq('role', role);
+    }
+    
+    // Add pagination
+    query = query.range(offset, offset + limit - 1);
+    
+    const { data, error, count } = await query;
+    
     if (error) throw error;
-    return data as User[];
+    
+    return {
+      users: data as User[],
+      total: count || 0
+    };
   } catch (error) {
     console.error('Error getting all users:', error);
-    return [];
+    return {
+      users: [],
+      total: 0
+    };
   }
 }; 

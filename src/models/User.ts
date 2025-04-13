@@ -9,33 +9,36 @@
  *         - email
  *         - first_name
  *         - last_name
+ *         - role
  *       properties:
  *         id:
  *           type: string
  *           format: uuid
- *           description: User's unique identifier
+ *           description: Kullanıcı kimliği
  *         email:
  *           type: string
  *           format: email
- *           description: User's email address
+ *           description: E-posta adresi
  *         first_name:
  *           type: string
- *           description: User's first name
+ *           description: Ad
  *         last_name:
  *           type: string
- *           description: User's last name
+ *           description: Soyad
+ *         phone_number:
+ *           type: string
+ *           description: Telefon numarası
  *         role:
  *           type: string
- *           enum: [admin, user, coach]
- *           description: User's role
+ *           description: Kullanıcı rolü (admin, user, coach)
  *         created_at:
  *           type: string
  *           format: date-time
- *           description: Timestamp of when user was created
+ *           description: Oluşturulma tarihi
  *         updated_at:
  *           type: string
  *           format: date-time
- *           description: Timestamp of last update
+ *           description: Güncellenme tarihi
  *     CreateUserDTO:
  *       type: object
  *       required:
@@ -47,21 +50,23 @@
  *         email:
  *           type: string
  *           format: email
- *           description: User's email address
+ *           description: E-posta adresi
  *         password:
  *           type: string
  *           format: password
- *           description: User's password
+ *           description: Şifre
  *         first_name:
  *           type: string
- *           description: User's first name
+ *           description: Ad
  *         last_name:
  *           type: string
- *           description: User's last name
+ *           description: Soyad
+ *         phone_number:
+ *           type: string
+ *           description: Telefon numarası
  *         role:
  *           type: string
- *           enum: [admin, user, coach]
- *           description: User's role (defaults to 'user')
+ *           description: Kullanıcı rolü (varsayılan olarak 'user')
  *     LoginDTO:
  *       type: object
  *       required:
@@ -71,11 +76,11 @@
  *         email:
  *           type: string
  *           format: email
- *           description: User's email address
+ *           description: E-posta adresi
  *         password:
  *           type: string
  *           format: password
- *           description: User's password
+ *           description: Şifre
  */
 
 export interface User {
@@ -83,7 +88,8 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'user' | 'coach';
+  phone_number?: string;
+  role: string;
   created_at: string;
   updated_at: string;
 }
@@ -93,7 +99,8 @@ export interface CreateUserDTO {
   password: string;
   first_name: string;
   last_name: string;
-  role?: 'admin' | 'user' | 'coach';
+  phone_number?: string;
+  role?: string;
 }
 
 export interface LoginDTO {

@@ -34,4 +34,7 @@ Thumbs.db
 
 # Docker
 .docker/
-docker-compose.override.yml 
+docker-compose.override.yml
+
+# Postman collection files
+postman/ 
