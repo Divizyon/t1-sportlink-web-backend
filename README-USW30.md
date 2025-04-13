@@ -1,144 +1,114 @@
-# JavaScript to TypeScript Migration
+# User Event Filtering System
 
-This repository documents the migration process of a Node.js backend application from JavaScript to TypeScript. The migration includes user management, authentication, and database operations.
+This project is a system that allows users to filter pending events.
 
-## Migration Overview
+## Features
 
-### Completed Tasks
-
-1. **Database Configuration**
-   - Migrated `database.js` to `database.ts`
-   - Configured Sequelize with TypeScript
-   - Added proper type definitions for database connection
-
-2. **User Management**
-   - Converted `User.js` model to `User.ts`
-   - Added TypeScript interfaces for User attributes
-   - Implemented proper type checking for model properties
-
-3. **Authentication Service**
-   - Migrated `authService.js` to `authService.ts`
-   - Added type definitions for authentication methods
-   - Implemented proper error handling with TypeScript
-
-4. **User Service**
-   - Converted `userService.js` to `userService.ts`
-   - Added interfaces for user operations
-   - Implemented type-safe CRUD operations
-
-5. **Controllers**
-   - Migrated `UserController.js` and `AuthController.js` to TypeScript
-   - Added proper request and response typing
-   - Implemented error handling with type checking
-
-### File Structure
-
-```
-src/
-├── config/
-│   ├── database.ts
-│   └── logger.ts
-├── controllers/
-│   ├── AuthController.ts
-│   └── UserController.ts
-├── models/
-│   └── User.ts
-├── services/
-│   ├── authService.ts
-│   └── userService.ts
-└── routes/
-    ├── authRoutes.ts
-    └── userRoutes.ts
-```
+- Users can view pending events
+- Events can be filtered by status
+- Event details can be examined
+- Events can be approved or rejected
 
 ## Technical Details
 
-### Database Schema
+### Database Structure
 
 ```typescript
-interface UserAttributes {
+interface Event {
   id: number;
-  email: string;
-  password: string;
-  name: string;
-  surname: string;
-  phoneNumber: string;
-  role?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  title: string;
+  description: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: Date;
+  updatedAt: Date;
+  userId: number;
 }
 ```
 
-### Dependencies Added
+### API Endpoints
 
-```json
-{
-  "dependencies": {
-    "sequelize": "^6.31.0",
-    "pg": "^8.10.0",
-    "pg-hstore": "^2.3.4"
-  },
-  "devDependencies": {
-    "@types/sequelize": "^4.28.14",
-    "@types/pg": "^8.6.6"
-  }
-}
-```
+- `GET /api/events/pending` - Lists pending events
+- `GET /api/events/pending?status=pending` - Filters events by specific status
+- `PUT /api/events/:id/status` - Updates event status
 
-## Setup Instructions
+### Filtering Options
+
+1. **Status Filtering**
+   - Pending
+   - Approved
+   - Rejected
+
+2. **Date Filtering**
+   - Last 24 hours
+   - Last 7 days
+   - Last 30 days
+   - Custom date range
+
+3. **User Filtering**
+   - Events of a specific user
+   - Events of all users
+
+## Installation
 
 1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Configure environment variables:
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=sportlink
-JWT_SECRET=your_jwt_secret
-```
-
-3. Build the TypeScript code:
+2. Configure database connection:
 ```bash
-npm run build
+cp .env.example .env
+# Edit .env file
 ```
 
-4. Start the development server:
+3. Run database migrations:
+```bash
+npm run migrate
+```
+
+4. Start the application:
 ```bash
 npm run dev
 ```
 
-## Migration Notes
+## Usage
 
-1. **Type Definitions**
-   - Added proper type definitions for all database models
-   - Implemented interfaces for request/response objects
-   - Added type checking for service methods
+1. Log in to the system
+2. Go to "Events" menu
+3. Select "Pending" tab
+4. Apply desired filters
+5. View events and perform necessary actions
 
-2. **Error Handling**
-   - Improved error handling with TypeScript types
-   - Added proper error messages with type checking
-   - Implemented type-safe error responses
+## Security
 
-3. **Code Quality**
-   - Removed JavaScript files after TypeScript conversion
-   - Added proper TypeScript configurations
-   - Implemented consistent error handling
+- All API requests are protected with JWT token
+- Authorization is based on user roles
+- Rate limiting is implemented
+
+## Error Handling
+
+- Error handling mechanism is available for all API requests
+- User-friendly error messages are displayed
+- Error logs are recorded
 
 ## Testing
 
-To run the tests:
 ```bash
-npm test
+# Run unit tests
+npm run test
+
+# Run E2E tests
+npm run test:e2e
 ```
 
-## Next Steps
+## Contributing
 
-1. Add more TypeScript interfaces for other models
-2. Implement type-safe middleware
-3. Add more comprehensive error handling
-4. Implement proper validation with TypeScript
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License. 
