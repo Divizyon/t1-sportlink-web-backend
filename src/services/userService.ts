@@ -1,83 +1,59 @@
-import supabase from '../config/supabase';
-import { User, CreateUserDTO } from '../models/User';
+import { User } from '../models/User';
+import bcrypt from 'bcryptjs';
 
-export const findUserById = async (id: string): Promise<User | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
+interface UserData {
+  name: string;
+  email: string;
+  password: string;
+  surname: string;
+  phoneNumber: string;
+}
 
-    if (error) throw error;
-    return data as User;
-  } catch (error) {
-    console.error('Error finding user by ID:', error);
-    return null;
+export class UserService {
+  async getAllUsers(): Promise<User[]> {
+    return await User.findAll();
   }
-};
 
-export const findUserByEmail = async (email: string): Promise<User | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    if (error) throw error;
-    return data as User;
-  } catch (error) {
-    console.error('Error finding user by email:', error);
-    return null;
+  async getUserById(id: number): Promise<User | null> {
+    return await User.findByPk(id);
   }
-};
 
-export const createUser = async (userData: CreateUserDTO): Promise<User | null> => {
-  try {
-    // First, create the auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: userData.email,
-      password: userData.password,
+  async createUser(userData: UserData): Promise<User> {
+    const { name, email, password, surname, phoneNumber } = userData;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    return await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      surname,
+      phoneNumber
     });
+  }
 
-    if (authError) throw authError;
-    
-    if (!authData.user) {
-      throw new Error('Auth user creation failed');
+  async updateUser(id: number, userData: Partial<UserData>): Promise<User | null> {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return null;
     }
 
-    // Then create the user profile in our users table
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: userData.email,
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        role: userData.role || 'user',
-      })
-      .select()
-      .single();
+    if (userData.password) {
+      userData.password = await bcrypt.hash(userData.password, 10);
+    }
 
-    if (error) throw error;
-    return data as User;
-  } catch (error) {
-    console.error('Error creating user:', error);
-    return null;
+    await user.update(userData);
+    return user;
   }
-};
 
-export const getAllUsers = async (): Promise<User[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*');
-
-    if (error) throw error;
-    return data as User[];
-  } catch (error) {
-    console.error('Error getting all users:', error);
-    return [];
+  async deleteUser(id: number): Promise<boolean> {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return false;
+    }
+    await user.destroy();
+    return true;
   }
-}; 
+
+  async validatePassword(user: User, password: string): Promise<boolean> {
+    return await bcrypt.compare(password, user.password);
+  }
+} 

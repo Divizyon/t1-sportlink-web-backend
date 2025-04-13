@@ -1,63 +1,106 @@
-import supabase from '../config/supabase';
-import { LoginDTO } from '../models/User';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { User } from '../models/User';
 
-export const login = async (credentials: LoginDTO) => {
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
+interface UserData {
+  name: string;
+  email: string;
+  password: string;
+  surname: string;
+  phoneNumber: string;
+}
+
+interface LoginResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role?: string;
+  };
+  token: string;
+}
+
+export class AuthService {
+  static async register(userData: UserData): Promise<LoginResponse> {
+    const { name, email, password, surname, phoneNumber } = userData;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      throw new Error('Bu email adresi zaten kullanımda');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      surname,
+      phoneNumber
     });
 
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Login error:', error);
-    throw error;
-  }
-};
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '1d' }
+    );
 
-export const logout = async () => {
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    return { success: true };
-  } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
+    return {
+      user: {
+        id: user.id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role
+      },
+      token
+    };
   }
-};
 
-export const getCurrentUser = async () => {
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Get current user error:', error);
-    throw error;
-  }
-};
+  static async login(email: string, password: string): Promise<LoginResponse> {
+    // Find user
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      throw new Error('Geçersiz email veya şifre');
+    }
 
-export const resetPassword = async (email: string) => {
-  try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email);
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Reset password error:', error);
-    throw error;
-  }
-};
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new Error('Geçersiz email veya şifre');
+    }
 
-export const updatePassword = async (newPassword: string) => {
-  try {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Update password error:', error);
-    throw error;
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '1d' }
+    );
+
+    return {
+      user: {
+        id: user.id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role
+      },
+      token
+    };
   }
-}; 
+
+  static async verifyToken(token: string): Promise<any> {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string };
+      const user = await User.findByPk(decoded.userId);
+      if (!user) {
+        throw new Error('Kullanıcı bulunamadı');
+      }
+      return user;
+    } catch (error) {
+      throw new Error('Geçersiz token');
+    }
+  }
+} 
