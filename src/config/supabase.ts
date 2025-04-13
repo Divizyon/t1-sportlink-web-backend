@@ -6,7 +6,7 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const supabaseUrl = process.env.SUPABASE_URL as string;
-
+const supabaseKey = process.env.SUPABASE_KEY as string;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 const bypassSupabase = process.env.BYPASS_SUPABASE === 'true';
 
@@ -16,13 +16,16 @@ if (!bypassSupabase && (!supabaseUrl || !supabaseServiceKey)) {
 
 // Create a mock Supabase client for testing if bypass is enabled
 let supabase: any;
+let supabaseAdmin: any;
 
 if (bypassSupabase) {
   // Mock client
   supabase = { /* mock implementation */ };
+  supabaseAdmin = { /* mock implementation */ };
 } else {
   // Real client
-  supabase = createClient(supabaseUrl, supabaseServiceKey);
+  supabase = createClient(supabaseUrl, supabaseKey);
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 }
 
 if (bypassSupabase) {
@@ -54,12 +57,6 @@ if (bypassSupabase) {
   
   supabase = mockClient;
   supabaseAdmin = mockClient;
-} else {
-  // Normal client for user operations
-  supabase = createClient(supabaseUrl, supabaseKey);
-
-  // Admin client with service role for more privileged operations
-  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
 }
 
 export { supabaseAdmin };

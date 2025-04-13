@@ -10,17 +10,17 @@ const ensureBucketExists = async (bucket: string) => {
       throw new Error(`Bucket listesi alınamadı: ${getBucketsError.message}`);
     }
     
-    console.log('Mevcut bucketlar:', buckets.map(b => b.name));
+    console.log('Mevcut bucketlar:', buckets.map((b: any) => b.name));
     
-    const bucketExists = buckets.some(b => b.name === bucket);
+    const bucketExists = buckets.some((b: any) => b.name === bucket);
     
     // Bucket yoksa uyarı ver
     if (!bucketExists) {
-      console.warn(`Bucket "${bucket}" bulunamadı! Mevcut bucketlar: ${buckets.map(b => b.name).join(', ')}`);
-      throw new Error(`Bucket "${bucket}" bulunamadı. Mevcut bucketlar: ${buckets.map(b => b.name).join(', ')}`);
+      console.warn(`Bucket "${bucket}" bulunamadı! Mevcut bucketlar: ${buckets.map((b: any) => b.name).join(', ')}`);
+      throw new Error(`Bucket "${bucket}" bulunamadı. Mevcut bucketlar: ${buckets.map((b: any) => b.name).join(', ')}`);
     }
     
-    return buckets.find(b => b.name === bucket);
+    return buckets.find((b: any) => b.name === bucket);
   } catch (error: any) {
     throw new Error(`Bucket işlem hatası: ${error.message}`);
   }

@@ -96,14 +96,12 @@ app.use((req: express.Request, res: express.Response) => {
 });
 
 // Start server
-
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server ${PORT} portunda çalışıyor 🚀!`);
   console.log(`Ana sayfa: http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Storage API: http://localhost:${PORT}/api/storage/test`);
   console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
-});
 });
 
 // Ctrl+C ile düzgün kapanma için işleyici
