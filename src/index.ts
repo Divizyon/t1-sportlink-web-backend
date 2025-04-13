@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
+import eventRoutes from './routes/eventRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
+import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +37,7 @@ setupSwagger(app);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/events', eventRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -43,6 +46,10 @@ app.use(errorHandler);
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
   console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+  
+  // Start scheduled jobs
+  scheduleCompletedEventsJob();
+  console.log('Scheduled jobs started');
 });
 
 export default app;

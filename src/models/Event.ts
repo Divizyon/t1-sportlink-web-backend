@@ -1,0 +1,207 @@
+import { z } from 'zod';
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Event:
+ *       type: object
+ *       required:
+ *         - id
+ *         - creator_id
+ *         - sport_id
+ *         - title
+ *         - description
+ *         - event_date
+ *         - start_time
+ *         - end_time
+ *         - location_name
+ *         - location_latitude
+ *         - location_longitude
+ *         - max_participants
+ *         - status
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           description: Etkinliğin benzersiz tanımlayıcısı
+ *         creator_id:
+ *           type: string
+ *           format: uuid
+ *           description: Etkinliği oluşturan kullanıcının ID'si
+ *         sport_id:
+ *           type: string
+ *           format: uuid
+ *           description: Etkinliğin spor türünün ID'si
+ *         title:
+ *           type: string
+ *           minLength: 3
+ *           maxLength: 100
+ *           description: Etkinlik başlığı
+ *         description:
+ *           type: string
+ *           maxLength: 1000
+ *           description: Etkinlik açıklaması
+ *         event_date:
+ *           type: string
+ *           format: date-time
+ *           description: Etkinlik tarihi
+ *         start_time:
+ *           type: string
+ *           format: date-time
+ *           description: Etkinlik başlangıç zamanı
+ *         end_time:
+ *           type: string
+ *           format: date-time
+ *           description: Etkinlik bitiş zamanı
+ *         location_name:
+ *           type: string
+ *           maxLength: 200
+ *           description: Etkinlik konumunun adı
+ *         location_latitude:
+ *           type: number
+ *           minimum: -90
+ *           maximum: 90
+ *           format: float
+ *           description: Etkinlik konumunun enlem bilgisi
+ *         location_longitude:
+ *           type: number
+ *           minimum: -180
+ *           maximum: 180
+ *           format: float
+ *           description: Etkinlik konumunun boylam bilgisi
+ *         max_participants:
+ *           type: integer
+ *           minimum: 2
+ *           maximum: 1000
+ *           description: Maksimum katılımcı sayısı
+ *         status:
+ *           type: string
+ *           enum: [active, cancelled, completed]
+ *           description: Etkinliğin durumu
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           description: Etkinliğin oluşturulma zamanı
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *           description: Etkinliğin son güncellenme zamanı
+ *         participants:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/EventParticipant'
+ *           description: Etkinliğe katılan kullanıcılar
+ *         ratings:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/EventRating'
+ *           description: Etkinlik değerlendirmeleri
+ *         reports:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Report'
+ *           description: Etkinlik raporları
+ */
+
+export const EventStatus = {
+  ACTIVE: 'active',
+  CANCELLED: 'cancelled',
+  COMPLETED: 'completed'
+} as const;
+
+export type EventStatus = typeof EventStatus[keyof typeof EventStatus];
+
+export const EventParticipantRole = {
+  PARTICIPANT: 'participant',
+  ORGANIZER: 'organizer'
+} as const;
+
+export type EventParticipantRole = typeof EventParticipantRole[keyof typeof EventParticipantRole];
+
+// Zod şemaları ile validasyon
+export const EventValidationSchema = z.object({
+  id: z.string().uuid(),
+  creator_id: z.string().uuid(),
+  sport_id: z.string().uuid(),
+  title: z.string().min(3).max(100),
+  description: z.string().max(1000),
+  event_date: z.coerce.date(),
+  start_time: z.coerce.date(),
+  end_time: z.coerce.date(),
+  location_name: z.string().max(200),
+  location_latitude: z.number().min(-90).max(90),
+  location_longitude: z.number().min(-180).max(180),
+  max_participants: z.number().int().min(2).max(1000),
+  status: z.enum([EventStatus.ACTIVE, EventStatus.CANCELLED, EventStatus.COMPLETED]),
+  created_at: z.coerce.date(),
+  updated_at: z.coerce.date()
+}).refine(
+  (data) => data.end_time > data.start_time,
+  { message: "Bitiş zamanı başlangıç zamanından sonra olmalıdır" }
+).refine(
+  (data) => data.start_time > new Date(),
+  { message: "Başlangıç zamanı şu andan sonra olmalıdır" }
+);
+
+export const UpdateEventStatusSchema = z.object({
+  status: z.enum([EventStatus.ACTIVE, EventStatus.CANCELLED, EventStatus.COMPLETED])
+});
+
+export type Event = z.infer<typeof EventValidationSchema>;
+export type UpdateEventStatusDTO = z.infer<typeof UpdateEventStatusSchema>;
+
+export interface EventParticipant {
+  id: string;
+  event_id: string;
+  user_id: string;
+  role: EventParticipantRole;
+  joined_at: Date;
+}
+
+export interface EventRating {
+  id: string;
+  event_id: string;
+  rating: number;
+  review?: string;
+  created_at: Date;
+}
+
+export interface EventReport {
+  id: string;
+  reporter_id: string;
+  event_id: string;
+  report_reason: string;
+  report_date: Date;
+  status: string;
+  admin_notes?: string;
+}
+
+// Custom error sınıfları
+export class EventValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EventValidationError';
+  }
+}
+
+export class EventNotFoundError extends Error {
+  constructor(eventId: string) {
+    super(`Etkinlik bulunamadı: ${eventId}`);
+    this.name = 'EventNotFoundError';
+  }
+}
+
+export class EventPermissionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EventPermissionError';
+  }
+}
+
+export class EventStatusError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EventStatusError';
+  }
+} 
