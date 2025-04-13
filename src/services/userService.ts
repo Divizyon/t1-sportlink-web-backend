@@ -35,20 +35,35 @@ export const findUserByEmail = async (email: string): Promise<User | null> => {
 
 export const createUser = async (userData: CreateUserDTO): Promise<User | null> => {
   try {
-    // First, create the auth user with admin privileges to ensure it works
+    // Önce email'in kullanımda olup olmadığını kontrol et
+    const existingUser = await findUserByEmail(userData.email);
+    if (existingUser) {
+      throw new Error('Bu e-posta adresi zaten kullanılıyor.');
+    }
+
+    // Auth user oluştur
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
-      email_confirm: true
+      email_confirm: true,
+      user_metadata: {
+        first_name: userData.first_name,
+        last_name: userData.last_name
+      }
     });
 
-    if (authError) throw authError;
+    if (authError) {
+      if (authError.message.includes('already been registered')) {
+        throw new Error('Bu e-posta adresi zaten kullanılıyor.');
+      }
+      throw authError;
+    }
     
     if (!authData.user) {
-      throw new Error('Auth user creation failed');
+      throw new Error('Kullanıcı oluşturulamadı.');
     }
 
-    // Then create the user profile in our users table
+    // Kullanıcı profilini oluştur
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -56,16 +71,24 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
         email: userData.email,
         first_name: userData.first_name,
         last_name: userData.last_name,
-        role: userData.role || 'user',
+        role: userData.role || 'USER'
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Eğer profil oluşturma başarısız olursa auth user'ı da sil
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      throw error;
+    }
+
     return data as User;
   } catch (error) {
     console.error('Error creating user:', error);
-    return null;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Kullanıcı oluşturulurken bir hata oluştu.');
   }
 };
 

@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
 import eventRoutes from './routes/eventRoutes';
+import sportsRoutes from './routes/sportsRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
@@ -38,6 +39,7 @@ setupSwagger(app);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/sports', sportsRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

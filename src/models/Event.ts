@@ -77,7 +77,7 @@ import { z } from 'zod';
  *           description: Maksimum katılımcı sayısı
  *         status:
  *           type: string
- *           enum: [active, cancelled, completed]
+ *           enum: [ACTIVE, CANCELLED, COMPLETED]
  *           description: Etkinliğin durumu
  *         created_at:
  *           type: string
@@ -105,16 +105,16 @@ import { z } from 'zod';
  */
 
 export const EventStatus = {
-  ACTIVE: 'active',
-  CANCELLED: 'cancelled',
-  COMPLETED: 'completed'
+  ACTIVE: 'ACTIVE',
+  CANCELLED: 'CANCELLED',
+  COMPLETED: 'COMPLETED'
 } as const;
 
 export type EventStatus = typeof EventStatus[keyof typeof EventStatus];
 
 export const EventParticipantRole = {
-  PARTICIPANT: 'participant',
-  ORGANIZER: 'organizer'
+  PARTICIPANT: 'PARTICIPANT',
+  ORGANIZER: 'ORGANIZER'
 } as const;
 
 export type EventParticipantRole = typeof EventParticipantRole[keyof typeof EventParticipantRole];
