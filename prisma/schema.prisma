@@ -70,8 +70,8 @@ model Event {
   start_time       DateTime
   end_time         DateTime
   location_name    String
-  location_latitude  Float
-  location_longitude Float
+  location_lat     Float
+  location_long    Float
   max_participants Int
   status           String
   created_at       DateTime  @default(now())
