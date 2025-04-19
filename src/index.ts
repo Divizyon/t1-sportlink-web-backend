@@ -5,9 +5,12 @@ import dotenv from 'dotenv';
 import storageRoutes from './routes/storageRoutes';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
+import eventRoutes from './routes/eventRoutes';
+import sportsRoutes from './routes/sportsRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
+import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 
 // Load environment variables
 dotenv.config();
@@ -49,6 +52,10 @@ setupSwagger(app);
 
 // Routes
 app.use('/api/storage', storageRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/sports', sportsRoutes);
 
 // Root endpoint
 app.get('/', (req: express.Request, res: express.Response) => {
@@ -60,7 +67,11 @@ app.get('/', (req: express.Request, res: express.Response) => {
       status: 'active',
       endpoints: {
         health: '/health',
-        storage: '/api/storage/*'
+        storage: '/api/storage/*',
+        auth: '/api/auth/*',
+        users: '/api/users/*',
+        events: '/api/events/*',
+        sports: '/api/sports/*'
       }
     });
   } catch (error) {
@@ -78,13 +89,7 @@ app.get('/health', (req: express.Request, res: express.Response) => {
 });
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Hata yakalandı:', err.stack);
-  res.status(500).json({
-    success: false,
-    message: err.message || 'Sunucu hatası',
-  });
-});
+app.use(errorHandler);
 
 // 404 handler - en sonda olmalı
 app.use((req: express.Request, res: express.Response) => {
@@ -102,6 +107,10 @@ const server = app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Storage API: http://localhost:${PORT}/api/storage/test`);
   console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+  
+  // Start scheduled jobs
+  scheduleCompletedEventsJob();
+  console.log('Scheduled jobs started');
 });
 
 // Ctrl+C ile düzgün kapanma için işleyici

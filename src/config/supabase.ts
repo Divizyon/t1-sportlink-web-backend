@@ -14,19 +14,9 @@ if (!bypassSupabase && (!supabaseUrl || !supabaseServiceKey)) {
   throw new Error('Supabase kimlik bilgileri eksik. Lütfen .env dosyanızı kontrol edin.');
 }
 
-// Create a mock Supabase client for testing if bypass is enabled
-let supabase: any;
-let supabaseAdmin: any;
-
-if (bypassSupabase) {
-  // Mock client
-  supabase = { /* mock implementation */ };
-  supabaseAdmin = { /* mock implementation */ };
-} else {
-  // Real client
-  supabase = createClient(supabaseUrl, supabaseKey);
-  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-}
+// Normal client for user operations
+let supabase;
+let supabaseAdmin;
 
 if (bypassSupabase) {
   console.warn('WARNING: Using mock Supabase client. Only for documentation testing purposes.');
@@ -57,7 +47,16 @@ if (bypassSupabase) {
   
   supabase = mockClient;
   supabaseAdmin = mockClient;
+} else {
+  // Real client
+  supabase = createClient(supabaseUrl, supabaseKey);
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 }
+
+// Admin client for administrative operations (if service key exists)
+export const supabaseAdmin = process.env.SUPABASE_SERVICE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+  : supabase; // Eğer service key yoksa normal client'i kullan
 
 export { supabaseAdmin };
 export default supabase; 

@@ -7,15 +7,7 @@ export const register = async (req: Request, res: Response) => {
   try {
     const userData: CreateUserDTO = req.body;
     
-    // Check if user already exists
-    const existingUser = await userService.findUserByEmail(userData.email);
-    if (existingUser) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Bu e-posta adresi zaten kullanılıyor.'
-      });
-    }
-    
+    // Kullanıcı oluştur
     const newUser = await userService.createUser(userData);
     if (!newUser) {
       return res.status(500).json({
@@ -38,6 +30,17 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Register error:', error);
+    
+    if (error instanceof Error) {
+      // Özel hata mesajlarını kontrol et
+      if (error.message.includes('e-posta adresi zaten kullanılıyor')) {
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+    }
+    
     res.status(500).json({
       status: 'error',
       message: 'Kayıt işlemi sırasında bir hata oluştu.'
