@@ -26,7 +26,7 @@
  *           description: User's last name
  *         role:
  *           type: string
- *           enum: [admin, user, coach]
+ *           enum: [ADMIN, STAFF, USER]
  *           description: User's role
  *         created_at:
  *           type: string
@@ -60,8 +60,8 @@
  *           description: User's last name
  *         role:
  *           type: string
- *           enum: [admin, user, coach]
- *           description: User's role (defaults to 'user')
+ *           enum: [ADMIN, STAFF, USER]
+ *           description: User's role (defaults to 'USER')
  *     LoginDTO:
  *       type: object
  *       required:
@@ -83,7 +83,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'user' | 'coach';
+  role: 'ADMIN' | 'STAFF' | 'USER';
   created_at: string;
   updated_at: string;
 }
@@ -93,7 +93,7 @@ export interface CreateUserDTO {
   password: string;
   first_name: string;
   last_name: string;
-  role?: 'admin' | 'user' | 'coach';
+  role?: 'ADMIN' | 'STAFF' | 'USER';
 }
 
 export interface LoginDTO {
