@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
+import eventRoutes from './routes/eventRoutes';
+import sportRoutes from './routes/sportRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 
@@ -24,6 +26,8 @@ app.use(logRequest); // Add logRequest middleware
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/sports', sportRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

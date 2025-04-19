@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import supabase from '../config/supabase';
 
-export const protect = async (req: Request, res: Response, next: NextFunction) => {
+// Eski middleware adı (geriye dönük uyumluluk için)
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // 1) Get token from the Authorization header
     let token;
@@ -43,6 +44,9 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     });
   }
 };
+
+// Yeni middleware adı (bu projede kullanılıyor)
+export const protect = authenticate;
 
 // Middleware to restrict access to certain roles
 export const restrictTo = (...roles: string[]) => {
