@@ -12,11 +12,11 @@ import { setupSwagger } from './middleware/swaggerMiddleware';
 import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ override: true });
 
 // Initialize express app
 const app = express();
-const port = process.env.PORT || 3001;
+const port = 3000;
 
 // CORS options
 const corsOptions = {
