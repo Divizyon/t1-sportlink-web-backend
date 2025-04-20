@@ -46,4 +46,24 @@ export const getUserById = async (req: Request, res: Response) => {
       message: 'Kullanıcı getirilirken bir hata oluştu.'
     });
   }
+};
+
+export const getUserDetails = async (req: Request, res: Response) => {
+  try {
+    const userDetails = await userService.getUserDetails();
+    
+    res.status(200).json({
+      status: 'success',
+      results: userDetails.length,
+      data: {
+        USER_DETAILS: userDetails
+      }
+    });
+  } catch (error) {
+    console.error('Get user details error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Kullanıcı detayları getirilirken bir hata oluştu.'
+    });
+  }
 }; 

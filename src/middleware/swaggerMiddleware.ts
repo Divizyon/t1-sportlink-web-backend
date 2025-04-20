@@ -186,6 +186,64 @@ export const setupSwagger = (app: express.Application): void => {
               last_name: 'Doe',
             },
           },
+          // Kullanıcı Detay modeli (Frontend için)
+          UserDetail: {
+            type: 'object',
+            required: ['id', 'name', 'email', 'role', 'status', 'joinDate'],
+            properties: {
+              id: {
+                type: 'integer',
+                description: 'Kullanıcı benzersiz tanımlayıcısı',
+              },
+              name: {
+                type: 'string',
+                description: 'Kullanıcının tam adı',
+              },
+              email: {
+                type: 'string',
+                format: 'email',
+                description: 'Kullanıcı e-posta adresi',
+              },
+              role: {
+                type: 'string',
+                description: 'Kullanıcı rolü (Türkçe, örn. "üye", "yönetici")',
+              },
+              status: {
+                type: 'string',
+                description: 'Kullanıcı hesap durumu (örn. "aktif", "pasif")',
+              },
+              joinDate: {
+                type: 'string',
+                format: 'date',
+                description: 'Kullanıcının katılma tarihi',
+              },
+              avatar: {
+                type: 'string',
+                description: 'Kullanıcı profil resmi yolu',
+              },
+              registeredDate: {
+                type: 'string',
+                format: 'date',
+                description: 'Kullanıcının kayıt tarihi',
+              },
+              lastActive: {
+                type: 'string',
+                format: 'date',
+                description: 'Kullanıcının son aktif olduğu tarih',
+              },
+            },
+            example: {
+              id: 1,
+              name: "Ahmet Koç",
+              email: "ahmet@example.com",
+              role: "üye",
+              status: "aktif",
+              joinDate: "2023-01-15",
+              avatar: "/avatars/user1.jpg",
+              registeredDate: "2023-01-10",
+              lastActive: "2023-07-15"
+            },
+          },
           // Giriş DTO şeması
           LoginDTO: {
             type: 'object',

@@ -77,6 +77,16 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    
+    // Email not confirmed hatası
+    if (error instanceof Error && 'code' in error && error.code === 'email_not_confirmed') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'E-posta adresiniz henüz doğrulanmamış. Lütfen e-posta kutunuzu kontrol edin veya yeni bir doğrulama bağlantısı talep edin.',
+        code: 'email_not_confirmed'
+      });
+    }
+    
     res.status(401).json({
       status: 'error',
       message: 'Geçersiz e-posta veya şifre.'

@@ -237,7 +237,9 @@ router.post('/reset-password', AuthController.resetPassword);
  * /api/auth/resend-verification:
  *   post:
  *     summary: Resend verification email
- *     description: Resends the account verification email to the user
+ *     description: |
+ *       Resends the account verification email to the user.
+ *       Use this endpoint when a user gets "Email not confirmed" error during login.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -250,25 +252,37 @@ router.post('/reset-password', AuthController.resetPassword);
  *               email:
  *                 type: string
  *                 format: email
+ *                 description: The email address that needs verification
  *     responses:
  *       200:
- *         description: Verification email sent
+ *         description: Verification email sent successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Doğrulama bağlantısı e-posta adresinize gönderildi.
  *             example:
  *               status: success
- *               message: Doğrulama e-postası gönderildi.
+ *               message: Doğrulama bağlantısı e-posta adresinize gönderildi.
  *       400:
- *         description: Invalid input
+ *         description: Bad request - Email not provided
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               status: error
- *               message: E-posta adresi gereklidir.
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: E-posta adresi gereklidir.
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
