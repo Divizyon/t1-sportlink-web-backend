@@ -173,7 +173,8 @@ export const updateEventStatus = async (
     }
 
     // Optimistic locking için version kontrolü
-    const { data, error } = await getSupabaseAdmin()
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
       .from('events')
       .update({ 
         status: status,
@@ -211,7 +212,8 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
     const now = new Date();
     logger.info(`Süresi dolmuş etkinlikleri tamamlandı olarak işaretleme işlemi başlatıldı. Şu anki zaman: ${now.toISOString()}`);
     
-    const { error } = await getSupabaseAdmin()
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error } = await supabaseAdmin
       .from('events')
       .update({ 
         status: EventStatus.COMPLETED,
@@ -255,7 +257,8 @@ export const createEvent = async (eventData: any) => {
     logger.info(`Supabase insert hazırlandı: ${JSON.stringify(eventDataToInsert, null, 2)}`);
 
     // Etkinliği oluştur - supabase yerine supabaseAdmin kullanıyoruz (RLS bypass)
-    const { data, error } = await getSupabaseAdmin()
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
       .from('events')
       .insert([eventDataToInsert])
       .select()
@@ -286,7 +289,8 @@ export const getAllEvents = async () => {
   try {
     logger.info('Tüm etkinlikler getiriliyor');
     
-    const { data, error } = await getSupabaseAdmin()
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
       .from('events')
       .select('*')
       .order('event_date', { ascending: true });

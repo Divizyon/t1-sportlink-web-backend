@@ -41,6 +41,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
     // Önce email'in kullanımda olup olmadığını kontrol et
     const existingUser = await findUserByEmail(userData.email);
     if (existingUser) {
+      console.log('Email already exists:', userData.email);
       throw new Error('Bu e-posta adresi zaten kullanılıyor.');
     }
 
@@ -63,9 +64,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
 
     if (authError) {
       console.error('Auth user creation error:', authError);
-      console.error('Auth error details:', JSON.stringify(authError, null, 2));
-      
-      if (authError.message?.includes('already been registered')) {
+      if (authError.message.includes('already been registered')) {
         throw new Error('Bu e-posta adresi zaten kullanılıyor.');
       }
       
@@ -77,6 +76,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
     }
     
     if (!authData.user) {
+      console.error('Auth data user is null');
       throw new Error('Kullanıcı oluşturulamadı.');
     }
 
@@ -113,10 +113,13 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
     console.log('User created successfully:', data.email);
     return data as User;
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('Error in createUser:', error);
     if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       throw error;
     }
     throw new Error('Kullanıcı oluşturulurken bir hata oluştu.');

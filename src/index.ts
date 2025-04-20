@@ -8,15 +8,15 @@ import eventRoutes from './routes/eventRoutes';
 import sportsRoutes from './routes/sportsRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
-import { setupSwagger } from './middleware/swaggerMiddleware';
+import setupSwagger from './config/swagger';
 import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ override: true });
 
 // Initialize express app
 const app = express();
-const port = process.env.PORT || 3001;
+const port = 3000;
 
 // CORS options
 const corsOptions = {
@@ -43,6 +43,17 @@ app.use(logRequest); // Add logRequest middleware
 
 // Setup Swagger documentation
 setupSwagger(app);
+
+// API double prefix sorununu çözmek için yönlendirme middleware'i
+app.use((req, res, next) => {
+  // Hatalı çift API prefix'i içeren istekleri yönlendir
+  if (req.url.startsWith('/api/api/')) {
+    const correctPath = req.url.replace('/api/api/', '/api/');
+    console.log(`Hatalı API isteği düzeltiliyor: ${req.url} -> ${correctPath}`);
+    return res.redirect(307, correctPath);
+  }
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
