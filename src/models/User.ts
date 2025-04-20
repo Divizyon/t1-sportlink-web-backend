@@ -36,6 +36,47 @@
  *           type: string
  *           format: date-time
  *           description: Timestamp of last update
+ *     UserDetail:
+ *       type: object
+ *       required:
+ *         - id
+ *         - name
+ *         - email
+ *         - role
+ *         - status
+ *         - joinDate
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: User's unique identifier
+ *         name:
+ *           type: string
+ *           description: User's full name
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: User's email address
+ *         role:
+ *           type: string
+ *           description: User's role in Turkish (e.g. üye, admin)
+ *         status:
+ *           type: string
+ *           description: User's account status (e.g. aktif, pasif)
+ *         joinDate:
+ *           type: string
+ *           format: date
+ *           description: Date when user joined
+ *         avatar:
+ *           type: string
+ *           description: Path to user's avatar image
+ *         registeredDate:
+ *           type: string
+ *           format: date
+ *           description: Date when user registered
+ *         lastActive:
+ *           type: string
+ *           format: date
+ *           description: Date when user was last active
  *     CreateUserDTO:
  *       type: object
  *       required:
@@ -86,6 +127,18 @@ export interface User {
   role: 'ADMIN' | 'STAFF' | 'USER';
   created_at: string;
   updated_at: string;
+}
+
+export interface UserDetail {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  joinDate: string;
+  avatar?: string;
+  registeredDate: string;
+  lastActive: string;
 }
 
 export interface CreateUserDTO {
