@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Users {
+  id                   BigInt       @id @default(autoincrement())
+  username             String
+  password             String
+  email                String
+  first_name           String
+  last_name            String
+  phone                String
+  profile_picture      String
+  default_location_latitude  Float
+  default_location_longitude Float
+  role                 String
+  created_at           DateTime     @default(now())
+  updated_at           DateTime     @updatedAt
+
+  createdEvents        Events[]     @relation("UserEvents")
+  userSports           User_Sports[]
+  userRatingsGiven     User_Ratings[] @relation("RatingUser")
+  userRatingsReceived  User_Ratings[] @relation("RatedUser")
+  eventParticipants    Event_Participants[]
+  eventRatings         Event_Ratings[]
+  notifications        Notifications[]
+  adminLogs            Admin_Logs[]
+  reportsMade          Reports[]    @relation("Reporter")
+  reportsReceived      Reports[]    @relation("Reported")
+}
+
+model Sports {
+  id          BigInt       @id @default(autoincrement())
+  name        String
+  description String
+  icon        String
+
+  events      Events[]
+  news        News[]
+  userSports  User_Sports[]
+}
+
+model User_Sports {
+  user_id    BigInt
+  sport_id   BigInt
+  skill_level String
+
+  user   Users  @relation(fields: [user_id], references: [id])
+  sport  Sports @relation(fields: [sport_id], references: [id])
+
+  @@id([user_id, sport_id])
+}
+
+model News {
+  id             BigInt    @id @default(autoincrement())
+  title          String
+  content        String
+  source_url     String
+  image_url      String
+  published_date DateTime
+  sport_id       BigInt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  sport          Sports    @relation(fields: [sport_id], references: [id])
+}
+
+model Events {
+  id               BigInt    @id @default(autoincrement())
+  creator_id       BigInt
+  sport_id         BigInt
+  title            String
+  description      String
+  event_date       DateTime
+  start_time       DateTime
+  end_time         DateTime
+  location_name    String
+  location_latitude  Float
+  location_longitude Float
+  max_participants Int
+  status           String
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  creator          Users     @relation("UserEvents", fields: [creator_id], references: [id])
+  sport            Sports    @relation(fields: [sport_id], references: [id])
+  participants     Event_Participants[]
+  ratings          Event_Ratings[]
+  notifications    Notifications[]
+  reports          Reports[]
+}
+
+model Event_Participants {
+  event_id   BigInt
+  user_id    BigInt
+  joined_at  DateTime  @default(now())
+  role       String
+
+  event      Events    @relation(fields: [event_id], references: [id])
+  user       Users     @relation(fields: [user_id], references: [id])
+
+  @@id([event_id, user_id])
+}
+
+model Event_Ratings {
+  id        BigInt   @id @default(autoincrement())
+  event_id  BigInt
+  user_id   BigInt
+  rating    Int
+  review    String
+  created_at DateTime @default(now())
+
+  event     Events   @relation(fields: [event_id], references: [id])
+  user      Users    @relation(fields: [user_id], references: [id])
+}
+
+model Notifications {
+  id               BigInt   @id @default(autoincrement())
+  user_id          BigInt
+  notification_type String
+  content          String
+  read_status      Boolean  @default(false)
+  created_at       DateTime @default(now())
+  event_id         BigInt
+
+  user             Users    @relation(fields: [user_id], references: [id])
+  event            Events   @relation(fields: [event_id], references: [id])
+}
+
+model Reports {
+  id           BigInt   @id @default(autoincrement())
+  reporter_id  BigInt
+  reported_id  BigInt
+  event_id     BigInt
+  report_reason String
+  report_date   DateTime @default(now())
+  status        String
+  admin_notes   String?
+
+  reporter     Users   @relation("Reporter", fields: [reporter_id], references: [id])
+  reported     Users   @relation("Reported", fields: [reported_id], references: [id])
+  event        Events  @relation(fields: [event_id], references: [id])
+}
+
+model Admin_Logs {
+  id           BigInt   @id @default(autoincrement())
+  admin_id     BigInt
+  action_type  String
+  description  String
+  created_at   DateTime @default(now())
+
+  admin        Users    @relation(fields: [admin_id], references: [id])
+}
+
+model User_Ratings {
+  id              BigInt   @id @default(autoincrement())
+  rated_user_id   BigInt
+  rating_user_id  BigInt
+  rating_value    Int
+  review_text     String
+  created_at      DateTime @default(now())
+
+  ratedUser       Users    @relation("RatedUser", fields: [rated_user_id], references: [id])
+  ratingUser      Users    @relation("RatingUser", fields: [rating_user_id], references: [id])
+}
+
+model Security_Logs {
+  id           String   @id @default(uuid())
+  type         String   // 'login', 'logout', 'failed_attempt', 'password_change', 'user_update', 'role_change', 'permission_change'
+  admin        String
+  ip           String
+  date         String   // 'yyyy-MM-dd' format
+  time         String   // 'HH:mm' format
+  status       String   // 'success', 'warning', 'error'
+  action       String
+  created_at   DateTime @default(now())
+}
