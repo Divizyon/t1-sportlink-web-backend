@@ -112,10 +112,21 @@ export const SecurityController = {
       const { success, error } = await SecurityService.deleteLog(id);
       
       if (!success) {
-        return res.status(500).json({
+        // Hata türüne göre uygun HTTP durumu döndür
+        let status = 500;
+        const errorMessage = error?.message || 'Güvenlik logu silinirken bir hata oluştu';
+        
+        // Eğer kayıt bulunamadıysa 404 döndür
+        if (errorMessage.includes('bulunamadı')) {
+          status = 404;
+        } else if (errorMessage.includes('Geçersiz log ID')) {
+          status = 400;
+        }
+        
+        return res.status(status).json({
           success: false,
           message: 'Güvenlik logu silinirken bir hata oluştu',
-          error: error?.message
+          error: errorMessage
         });
       }
       
@@ -125,10 +136,18 @@ export const SecurityController = {
       });
     } catch (error) {
       console.error('Güvenlik logu silinirken beklenmeyen bir hata oluştu:', error);
+      // Hata detaylarını loglama
+      const errorDetails = {
+        message: (error as Error).message || 'Bilinmeyen hata',
+        stack: (error as Error).stack,
+        params: req.params
+      };
+      console.error('Hata detayları:', JSON.stringify(errorDetails, null, 2));
+      
       return res.status(500).json({
         success: false,
         message: 'Güvenlik logu silinirken beklenmeyen bir hata oluştu',
-        error: (error as Error).message
+        error: (error as Error).message || 'Bilinmeyen hata'
       });
     }
   }

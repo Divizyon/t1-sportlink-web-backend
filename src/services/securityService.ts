@@ -133,18 +133,52 @@ export const SecurityService = {
     const client = await pool.connect();
     
     try {
+      // ID'nin geçerli olup olmadığını kontrol et
+      if (!id || id.trim() === '') {
+        return {
+          success: false,
+          error: new Error('Geçersiz log ID\'si')
+        };
+      }
+
+      // İlk olarak bu ID'li kaydın var olup olmadığını kontrol et
+      const checkQuery = `SELECT id FROM security_logs WHERE id = $1;`;
+      const checkResult = await client.query(checkQuery, [id]);
+      
+      if (checkResult.rowCount === 0) {
+        return {
+          success: false,
+          error: new Error(`ID: ${id} olan log kaydı bulunamadı`)
+        };
+      }
+
+      // Silme işlemini gerçekleştir
       const deleteQuery = `DELETE FROM security_logs WHERE id = $1 RETURNING *;`;
       const result = await client.query(deleteQuery, [id]);
       
-      return {
-        success: result.rowCount !== null && result.rowCount > 0,
-        error: null
-      };
+      // Etkilenen satır sayısını kontrol et
+      if (result.rowCount !== null && result.rowCount > 0) {
+        return {
+          success: true,
+          error: null
+        };
+      } else {
+        return {
+          success: false,
+          error: new Error(`Silme işlemi başarısız oldu. ID: ${id}`)
+        };
+      }
     } catch (error) {
       console.error('Güvenlik logu silinirken hata oluştu:', error);
+      
+      // Hata mesajını daha detaylı hale getir
+      const errorMessage = error instanceof Error 
+        ? `${error.message} (ID: ${id})` 
+        : `Bilinmeyen hata (ID: ${id})`;
+        
       return {
         success: false,
-        error
+        error: new Error(errorMessage)
       };
     } finally {
       client.release();
