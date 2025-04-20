@@ -25,7 +25,7 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  apis: ['./src/routes/*.ts'], // API route dosyalarının bulunduğu dizin
+  apis: ['./src/routes/*.ts', './src/models/*.ts'], // API route ve model dosyalarının bulunduğu dizinler
 };
 
 const specs = swaggerJsdoc(options);

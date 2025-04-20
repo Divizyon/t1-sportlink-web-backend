@@ -350,6 +350,211 @@ export const setupSwagger = (app: express.Application): void => {
               message: 'Bir hata oluştu',
             },
           },
+          // Event model
+          Event: {
+            type: 'object',
+            required: [
+              'id',
+              'creator_id',
+              'sport_id',
+              'title',
+              'description',
+              'event_date',
+              'start_time',
+              'end_time',
+              'location_name',
+              'location_latitude',
+              'location_longitude',
+              'max_participants',
+              'status'
+            ],
+            properties: {
+              id: {
+                type: 'integer',
+                format: 'int64',
+                description: 'Etkinliğin benzersiz tanımlayıcısı'
+              },
+              creator_id: {
+                type: 'string',
+                format: 'uuid',
+                description: 'Etkinliği oluşturan kullanıcının ID\'si'
+              },
+              sport_id: {
+                type: 'integer',
+                format: 'int64',
+                description: 'Etkinliğin spor türünün ID\'si'
+              },
+              title: {
+                type: 'string',
+                minLength: 3,
+                maxLength: 100,
+                description: 'Etkinlik başlığı'
+              },
+              description: {
+                type: 'string',
+                maxLength: 1000,
+                description: 'Etkinlik açıklaması'
+              },
+              event_date: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Etkinlik tarihi'
+              },
+              start_time: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Etkinlik başlangıç zamanı'
+              },
+              end_time: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Etkinlik bitiş zamanı'
+              },
+              location_name: {
+                type: 'string',
+                maxLength: 200,
+                description: 'Etkinlik konumunun adı'
+              },
+              location_latitude: {
+                type: 'number',
+                format: 'float',
+                minimum: -90,
+                maximum: 90,
+                description: 'Etkinlik konumunun enlem bilgisi'
+              },
+              location_longitude: {
+                type: 'number',
+                format: 'float',
+                minimum: -180,
+                maximum: 180,
+                description: 'Etkinlik konumunun boylam bilgisi'
+              },
+              max_participants: {
+                type: 'integer',
+                format: 'int32',
+                minimum: 2,
+                maximum: 1000,
+                description: 'Maksimum katılımcı sayısı'
+              },
+              status: {
+                type: 'string',
+                enum: ['ACTIVE', 'CANCELLED', 'COMPLETED'],
+                description: 'Etkinliğin durumu'
+              },
+              created_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Etkinliğin oluşturulma zamanı'
+              },
+              updated_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Etkinliğin son güncellenme zamanı'
+              }
+            }
+          },
+          
+          // EventParticipant model
+          EventParticipant: {
+            type: 'object',
+            required: [
+              'id',
+              'event_id',
+              'user_id',
+              'role',
+              'joined_at'
+            ],
+            properties: {
+              id: {
+                type: 'integer',
+                format: 'int64',
+                description: 'Katılımcı kaydının benzersiz tanımlayıcısı'
+              },
+              event_id: {
+                type: 'integer',
+                format: 'int64',
+                description: 'Etkinliğin ID\'si'
+              },
+              user_id: {
+                type: 'string',
+                format: 'uuid',
+                description: 'Katılımcı kullanıcının ID\'si'
+              },
+              role: {
+                type: 'string',
+                enum: ['PARTICIPANT', 'ORGANIZER'],
+                description: 'Kullanıcının etkinlikteki rolü'
+              },
+              joined_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Kullanıcının etkinliğe katılma tarihi'
+              }
+            }
+          },
+          
+          // TodayEvent model (Frontend formatı)
+          TodayEvent: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'integer',
+                format: 'int64',
+                description: 'Etkinlik ID\'si'
+              },
+              title: {
+                type: 'string',
+                description: 'Etkinlik başlığı'
+              },
+              description: {
+                type: 'string',
+                description: 'Etkinlik açıklaması'
+              },
+              date: {
+                type: 'string',
+                format: 'date',
+                description: 'Etkinlik tarihi'
+              },
+              time: {
+                type: 'string',
+                description: 'Başlangıç saati (HH:MM)'
+              },
+              endTime: {
+                type: 'string',
+                description: 'Bitiş saati (HH:MM)'
+              },
+              location: {
+                type: 'string',
+                description: 'Etkinlik konumu'
+              },
+              category: {
+                type: 'string',
+                description: 'Etkinlik kategorisi'
+              },
+              participants: {
+                type: 'integer',
+                format: 'int32',
+                description: 'Katılımcı sayısı'
+              },
+              maxParticipants: {
+                type: 'integer',
+                format: 'int32',
+                description: 'Maksimum katılımcı sayısı'
+              },
+              status: {
+                type: 'string',
+                description: 'Etkinlik durumu'
+              },
+              organizer: {
+                type: 'string',
+                description: 'Organizatör adı'
+              },
+              isAttending: {
+                type: 'boolean',
+                description: 'Kullanıcı etkinliğe katılıyor mu'
+              }
+            }
+          },
         },
       },
     },

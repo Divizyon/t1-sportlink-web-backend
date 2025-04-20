@@ -71,6 +71,61 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
+/**
+ * Opsiyonel kimlik doğrulama middleware'i
+ * Eğer token varsa kullanıcıyı doğrular ve req.user'a atar,
+ * yoksa işlemi kesintiye uğratmadan devam eder.
+ */
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // 1) Token'ı al
+    let token;
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    // Token yoksa, isteği doğrudan ilerlet
+    if (!token) {
+      logger.info('Token bulunamadı, misafir kullanıcı olarak devam ediliyor');
+      return next();
+    }
+
+    // 2) Token'ı doğrula
+    const { data, error } = await supabase.auth.getUser(token);
+
+    // Token geçersizse, isteği doğrudan ilerlet
+    if (error || !data.user) {
+      logger.info('Geçersiz token, misafir kullanıcı olarak devam ediliyor');
+      return next();
+    }
+
+    // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz
+    // ama bulunamazsa bile devam ediyoruz
+    const userProfile = await userService.findUserById(data.user.id);
+    
+    // Kullanıcı bilgilerini request'e ekle
+    req.user = data.user;
+    req.userId = data.user.id;
+    req.userProfile = userProfile || {
+      id: data.user.id,
+      email: data.user.email,
+      first_name: data.user.user_metadata?.first_name || 'Test',
+      last_name: data.user.user_metadata?.last_name || 'User',
+      role: 'USER'
+    };
+    
+    logger.info(`Kullanıcı doğrulandı, ID: ${data.user.id}`);
+    next();
+  } catch (error) {
+    // Hata durumunda bile isteği ilerlet
+    logger.error('Opsiyonel kimlik doğrulama hatası:', error);
+    next();
+  }
+};
+
 // Middleware to restrict access to certain roles
 export const restrictTo = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
