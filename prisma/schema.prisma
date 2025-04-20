@@ -1,177 +1,161 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-model Users {
-  id                   BigInt       @id @default(autoincrement())
-  username             String
-  password             String
-  email                String
-  first_name           String
-  last_name            String
-  phone                String
-  profile_picture      String
-  default_location_latitude  Float
-  default_location_longitude Float
-  role                 String
-  created_at           DateTime     @default(now())
-  updated_at           DateTime     @updatedAt
-
-  createdEvents        Events[]     @relation("UserEvents")
-  userSports           User_Sports[]
-  userRatingsGiven     User_Ratings[] @relation("RatingUser")
-  userRatingsReceived  User_Ratings[] @relation("RatedUser")
-  eventParticipants    Event_Participants[]
-  eventRatings         Event_Ratings[]
-  notifications        Notifications[]
-  adminLogs            Admin_Logs[]
-  reportsMade          Reports[]    @relation("Reporter")
-  reportsReceived      Reports[]    @relation("Reported")
-}
-
 model Sports {
-  id          BigInt       @id @default(autoincrement())
+  id          BigInt        @id @default(autoincrement())
   name        String
   description String
   icon        String
-
   events      Events[]
   news        News[]
   userSports  User_Sports[]
 }
 
 model User_Sports {
-  user_id    BigInt
-  sport_id   BigInt
+  sport_id    BigInt
   skill_level String
-
-  user   Users  @relation(fields: [user_id], references: [id])
-  sport  Sports @relation(fields: [sport_id], references: [id])
+  user_id     String @db.Uuid
+  sport       Sports @relation(fields: [sport_id], references: [id])
+  user        users  @relation(fields: [user_id], references: [id])
 
   @@id([user_id, sport_id])
 }
 
 model News {
-  id             BigInt    @id @default(autoincrement())
+  id             BigInt   @id @default(autoincrement())
   title          String
   content        String
   source_url     String
   image_url      String
   published_date DateTime
   sport_id       BigInt
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-
-  sport          Sports    @relation(fields: [sport_id], references: [id])
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  sport          Sports   @relation(fields: [sport_id], references: [id])
 }
 
 model Events {
-  id               BigInt    @id @default(autoincrement())
-  creator_id       BigInt
-  sport_id         BigInt
-  title            String
-  description      String
-  event_date       DateTime
-  start_time       DateTime
-  end_time         DateTime
-  location_name    String
+  id                 BigInt               @id @default(autoincrement())
+  sport_id           BigInt
+  title              String
+  description        String
+  event_date         DateTime
+  start_time         DateTime
+  end_time           DateTime
+  location_name      String
   location_latitude  Float
   location_longitude Float
-  max_participants Int
-  status           String
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
-
-  creator          Users     @relation("UserEvents", fields: [creator_id], references: [id])
-  sport            Sports    @relation(fields: [sport_id], references: [id])
-  participants     Event_Participants[]
-  ratings          Event_Ratings[]
-  notifications    Notifications[]
-  reports          Reports[]
+  max_participants   Int
+  status             String
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+  creator_id         String               @db.Uuid
+  participants       Event_Participants[]
+  ratings            Event_Ratings[]
+  creator            users                @relation("UserEvents", fields: [creator_id], references: [id])
+  sport              Sports               @relation(fields: [sport_id], references: [id])
+  notifications      Notifications[]
+  reports            Reports[]
 }
 
 model Event_Participants {
-  event_id   BigInt
-  user_id    BigInt
-  joined_at  DateTime  @default(now())
-  role       String
-
-  event      Events    @relation(fields: [event_id], references: [id])
-  user       Users     @relation(fields: [user_id], references: [id])
+  event_id  BigInt
+  joined_at DateTime @default(now())
+  role      String
+  user_id   String   @db.Uuid
+  event     Events   @relation(fields: [event_id], references: [id])
+  user      users    @relation(fields: [user_id], references: [id])
 
   @@id([event_id, user_id])
 }
 
 model Event_Ratings {
-  id        BigInt   @id @default(autoincrement())
-  event_id  BigInt
-  user_id   BigInt
-  rating    Int
-  review    String
+  id         BigInt   @id @default(autoincrement())
+  event_id   BigInt
+  rating     Int
+  review     String
   created_at DateTime @default(now())
-
-  event     Events   @relation(fields: [event_id], references: [id])
-  user      Users    @relation(fields: [user_id], references: [id])
+  user_id    String   @db.Uuid
+  event      Events   @relation(fields: [event_id], references: [id])
+  user       users    @relation(fields: [user_id], references: [id])
 }
 
 model Notifications {
-  id               BigInt   @id @default(autoincrement())
-  user_id          BigInt
+  id                BigInt   @id @default(autoincrement())
   notification_type String
-  content          String
-  read_status      Boolean  @default(false)
-  created_at       DateTime @default(now())
-  event_id         BigInt
-
-  user             Users    @relation(fields: [user_id], references: [id])
-  event            Events   @relation(fields: [event_id], references: [id])
+  content           String
+  read_status       Boolean  @default(false)
+  created_at        DateTime @default(now())
+  event_id          BigInt
+  user_id           String   @db.Uuid
+  event             Events   @relation(fields: [event_id], references: [id])
+  user              users    @relation(fields: [user_id], references: [id])
 }
 
 model Reports {
-  id           BigInt   @id @default(autoincrement())
-  reporter_id  BigInt
-  reported_id  BigInt
-  event_id     BigInt
+  id            BigInt   @id @default(autoincrement())
+  event_id      BigInt
   report_reason String
   report_date   DateTime @default(now())
   status        String
   admin_notes   String?
-
-  reporter     Users   @relation("Reporter", fields: [reporter_id], references: [id])
-  reported     Users   @relation("Reported", fields: [reported_id], references: [id])
-  event        Events  @relation(fields: [event_id], references: [id])
+  reporter_id   String   @db.Uuid
+  reported_id   String   @db.Uuid
+  event         Events   @relation(fields: [event_id], references: [id])
+  reported      users    @relation("Reported", fields: [reported_id], references: [id])
+  reporter      users    @relation("Reporter", fields: [reporter_id], references: [id])
 }
 
 model Admin_Logs {
-  id           BigInt   @id @default(autoincrement())
-  admin_id     BigInt
-  action_type  String
-  description  String
-  created_at   DateTime @default(now())
-
-  admin        Users    @relation(fields: [admin_id], references: [id])
+  id          BigInt   @id @default(autoincrement())
+  action_type String
+  description String
+  created_at  DateTime @default(now())
+  admin_id    String   @db.Uuid
+  admin       users    @relation(fields: [admin_id], references: [id])
 }
 
 model User_Ratings {
-  id              BigInt   @id @default(autoincrement())
-  rated_user_id   BigInt
-  rating_user_id  BigInt
-  rating_value    Int
-  review_text     String
-  created_at      DateTime @default(now())
+  id             BigInt   @id @default(autoincrement())
+  rating_value   Int
+  review_text    String
+  created_at     DateTime @default(now())
+  rated_user_id  String   @db.Uuid
+  rating_user_id String   @db.Uuid
+  ratedUser      users    @relation("RatedUser", fields: [rated_user_id], references: [id])
+  ratingUser     users    @relation("RatingUser", fields: [rating_user_id], references: [id])
+}
 
-  ratedUser       Users    @relation("RatedUser", fields: [rated_user_id], references: [id])
-  ratingUser      Users    @relation("RatingUser", fields: [rating_user_id], references: [id])
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id                         String               @id @db.Uuid
+  username                   String               @unique
+  email                      String               @unique
+  first_name                 String
+  last_name                  String
+  phone                      String
+  profile_picture            String
+  default_location_latitude  Float
+  default_location_longitude Float
+  role                       String               @default("USER")
+  created_at                 DateTime             @default(now())
+  updated_at                 DateTime
+  adminLogs                  Admin_Logs[]
+  eventParticipants          Event_Participants[]
+  eventRatings               Event_Ratings[]
+  createdEvents              Events[]             @relation("UserEvents")
+  notifications              Notifications[]
+  reportsReceived            Reports[]            @relation("Reported")
+  reportsMade                Reports[]            @relation("Reporter")
+  userRatingsReceived        User_Ratings[]       @relation("RatedUser")
+  userRatingsGiven           User_Ratings[]       @relation("RatingUser")
+  userSports                 User_Sports[]
 }

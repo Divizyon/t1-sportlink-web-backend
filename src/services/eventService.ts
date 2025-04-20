@@ -1,6 +1,6 @@
-import { Event, EventStatus, EventValidationSchema, UpdateEventStatusSchema, EventValidationError, EventNotFoundError, EventPermissionError, EventStatusError } from '../models/Event';
+import { Event, EventStatus, EventValidationSchema, UpdateEventStatusSchema, EventValidationError, EventNotFoundError, EventPermissionError, EventStatusError, TodayEvent } from '../models/Event';
 import supabase, { supabaseAdmin } from '../config/supabase';
-import { parseISO, addHours, isBefore, isAfter } from 'date-fns';
+import { parseISO, addHours, isBefore, isAfter, startOfDay, endOfDay, format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import logger from '../utils/logger';
 
@@ -20,7 +20,7 @@ export const findEventById = async (id: string): Promise<Event> => {
     
     // Basitleştirilmiş sorgu - sadece etkinlik verisi
     const { data, error } = await supabaseAdmin
-      .from('events')
+      .from('Events')
       .select('*')
       .eq('id', id)
       .single();
@@ -174,7 +174,7 @@ export const updateEventStatus = async (
 
     // Optimistic locking için version kontrolü
     const { data, error } = await supabaseAdmin
-      .from('events')
+      .from('Events')
       .update({ 
         status: status,
         updated_at: new Date().toISOString()
@@ -212,7 +212,7 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
     logger.info(`Süresi dolmuş etkinlikleri tamamlandı olarak işaretleme işlemi başlatıldı. Şu anki zaman: ${now.toISOString()}`);
     
     const { error } = await supabaseAdmin
-      .from('events')
+      .from('Events')
       .update({ 
         status: EventStatus.COMPLETED,
         updated_at: now.toISOString()
@@ -236,48 +236,140 @@ export const createEvent = async (eventData: any) => {
   try {
     logger.info(`Etkinlik oluşturma başlatıldı: ${JSON.stringify(eventData, null, 2)}`);
     
-    // Basitleştirilmiş veri hazırlığı
+    // Veri validasyonu yapabiliriz
+    if (!eventData.title) {
+      throw new EventValidationError('Etkinlik başlığı gereklidir');
+    }
+    
+    if (!eventData.sport_id) {
+      throw new EventValidationError('Spor türü gereklidir');
+    }
+    
+    if (!eventData.event_date || !eventData.start_time || !eventData.end_time) {
+      throw new EventValidationError('Etkinlik tarih ve saatleri gereklidir');
+    }
+    
+    if (!eventData.location_name) {
+      throw new EventValidationError('Etkinlik konumu gereklidir');
+    }
+    
+    if (!eventData.creator_id) {
+      throw new EventValidationError('Oluşturucu ID\'si gereklidir');
+    }
+    
+    // UUID kontrolü
+    try {
+      logger.info(`Creator ID formatı kontrolü: ${eventData.creator_id}, tip: ${typeof eventData.creator_id}`);
+      
+      // Temel UUID formatı kontrolü (Standart UUID formatı: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+      const uuidRegexTest = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventData.creator_id);
+      logger.info(`UUID regex kontrolü: ${uuidRegexTest ? 'Geçerli format' : 'Geçersiz format'}`);
+      
+      // Kullanıcı varlık kontrolü
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('id, role')
+        .eq('id', eventData.creator_id)
+        .single();
+        
+      if (userError) {
+        logger.error(`Creator ID veritabanı kontrolü hatası: ${JSON.stringify(userError, null, 2)}`);
+      }
+      
+      if (!userData) {
+        logger.warn(`Uyarı: ${eventData.creator_id} ID'li kullanıcı veritabanında bulunamadı`);
+      } else {
+        logger.info(`Kullanıcı veritabanında doğrulandı: ${userData.id}`);
+      }
+    } catch (uuidError) {
+      logger.error(`UUID kontrolü sırasında hata: ${uuidError instanceof Error ? uuidError.message : 'Bilinmeyen hata'}`);
+    }
+    
+    // Supabase'e gönderilecek veriyi hazırla
+    // creator_id UUID olmalı, sport_id integer olmalı
     const eventDataToInsert = {
       title: eventData.title,
       description: eventData.description || '',
-      creator_id: eventData.creator_id,
-      sport_id: eventData.sport_id,
+      creator_id: eventData.creator_id, // UUID formatında
+      sport_id: typeof eventData.sport_id === 'string' && !isNaN(Number(eventData.sport_id)) 
+        ? Number(eventData.sport_id) 
+        : eventData.sport_id, // Sayı olarak gelebilecek string ise dönüştür, değilse olduğu gibi kullan
       event_date: eventData.event_date,
       start_time: eventData.start_time,
       end_time: eventData.end_time,
       location_name: eventData.location_name,
-      location_lat: eventData.location_lat,
-      location_long: eventData.location_long,
-      max_participants: eventData.max_participants,
-      status: EventStatus.ACTIVE
+      location_latitude: parseFloat(eventData.location_lat),
+      location_longitude: parseFloat(eventData.location_long),
+      max_participants: Number(eventData.max_participants),
+      status: EventStatus.ACTIVE,
+      created_at: new Date().toISOString(), // Şu anki zamanı ekle
+      updated_at: new Date().toISOString()  // Şu anki zamanı ekle
     };
     
     logger.info(`Supabase insert hazırlandı: ${JSON.stringify(eventDataToInsert, null, 2)}`);
 
     // Etkinliği oluştur - supabase yerine supabaseAdmin kullanıyoruz (RLS bypass)
-    const { data, error } = await supabaseAdmin
-      .from('events')
-      .insert([eventDataToInsert])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('Events')
+        .insert([eventDataToInsert])
+        .select()
+        .single();
 
-    if (error) {
-      logger.error(`Etkinlik oluşturma hatası: ${error.message}`, error);
-      if (error.code === '23503') { // Foreign key violation
-        throw new Error(`Geçersiz ilişki hatası: ${error.message}`);
+      if (error) {
+        logger.error(`Supabase insert hatası: ${error.message}`, { error: JSON.stringify(error, null, 2) });
+        
+        // Genel hata kodları kontrolü
+        if (error.code) {
+          logger.error(`PostgreSQL hata kodu: ${error.code}`, { 
+            code: error.code,
+            details: error.details || 'Detay yok',
+            message: error.message || 'Mesaj yok',
+            hint: error.hint || 'İpucu yok'
+          });
+        }
+        
+        if (error.code === '23503') { // Foreign key violation
+          logger.error(`Foreign key violation hatası: ${error.details || 'Detay bulunmuyor'}`);
+          throw new Error(`Geçersiz ilişki hatası: ${error.message}`);
+        }
+        
+        if (error.code === '22P02') { // Invalid text representation
+          logger.error(`Veri tipi hatası: ${error.details || 'Detay bulunmuyor'}`);
+          throw new Error(`Geçersiz veri türü: ${error.message}`);
+        }
+        
+        if (error.code === '23505') { // Unique violation
+          logger.error(`Unique violation hatası: ${error.details || 'Detay bulunmuyor'}`);
+          throw new Error(`Bu etkinlik zaten var: ${error.message}`);
+        }
+        
+        // RLS hataları
+        if (error.code === '42501') { // Permission denied
+          logger.error(`İzin hatası - RLS kuralları engel olmuş olabilir`);
+          throw new Error(`Erişim izni hatası: ${error.message}`);
+        }
+        
+        // Diğer hata durumları
+        throw new Error(`Etkinlik oluşturulamadı: ${error.message}`);
       }
-      throw new Error(`Etkinlik oluşturulamadı: ${error.message}`);
-    }
 
-    if (!data) {
-      logger.error('Etkinlik verisi bulunamadı');
-      throw new Error('Etkinlik oluşturuldu ancak veri döndürülemedi');
-    }
+      if (!data) {
+        logger.error('Etkinlik verisi bulunamadı, ancak hata da döndürülmedi');
+        throw new Error('Etkinlik oluşturuldu ancak veri döndürülemedi');
+      }
 
-    logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`);
-    return data;
+      logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`, { data: JSON.stringify(data, null, 2) });
+      return data;
+    } catch (dbError) {
+      logger.error(`Veritabanı işlemi hatası: ${dbError instanceof Error ? dbError.message : 'Bilinmeyen hata'}`, {
+        stack: dbError instanceof Error ? dbError.stack : 'Stack yok'
+      });
+      throw dbError;
+    }
   } catch (error) {
-    logger.error('createEvent service hatası:', error);
+    logger.error(`createEvent service hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+    logger.error(`Hata stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
     throw error;
   }
 };
@@ -287,7 +379,7 @@ export const getAllEvents = async () => {
     logger.info('Tüm etkinlikler getiriliyor');
     
     const { data, error } = await supabaseAdmin
-      .from('events')
+      .from('Events')
       .select('*')
       .order('event_date', { ascending: true });
     
@@ -301,5 +393,103 @@ export const getAllEvents = async () => {
   } catch (error) {
     logger.error('getAllEvents hatası:', error);
     throw error;
+  }
+};
+
+/**
+ * Bugünün etkinliklerini getiren fonksiyon
+ * @returns Bugünkü etkinlik listesi frontend formatında
+ */
+export const getTodayEvents = async (userId?: string): Promise<TodayEvent[]> => {
+  try {
+    // Bugünün başlangıç ve bitiş zamanlarını al
+    const today = new Date();
+    const startOfToday = startOfDay(today);
+    const endOfToday = endOfDay(today);
+    
+    logger.info('Bugünün etkinlikleri alınıyor', {
+      startOfToday: startOfToday.toISOString(),
+      endOfToday: endOfToday.toISOString()
+    });
+
+    // Bugünün etkinliklerini getir - tüm ilişkileri spesifik olarak belirt
+    const { data: events, error } = await supabaseAdmin
+      .from('Events')
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*),
+        creator:users!Events_creator_id_fkey(id, first_name, last_name),
+        participants:Event_Participants(user_id)
+      `)
+      .gte('event_date', startOfToday.toISOString())
+      .lte('event_date', endOfToday.toISOString())
+      .eq('status', EventStatus.ACTIVE);
+    
+    if (error) {
+      logger.error('Bugünün etkinlikleri alınırken hata oluştu:', error);
+      throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
+    }
+
+    // Kullanıcının katıldığı etkinlikleri belirle
+    const { data: userParticipation, error: participationError } = userId 
+      ? await supabaseAdmin
+          .from('Event_Participants')
+          .select('event_id')
+          .eq('user_id', userId)
+      : { data: [], error: null };
+    
+    if (participationError) {
+      logger.error('Kullanıcı katılım bilgisi alınırken hata oluştu:', participationError);
+    }
+    
+    // Kullanıcının katıldığı etkinlik ID'lerini al
+    const userEventIds = (userParticipation || []).map(p => p.event_id);
+
+    // Verileri frontend formatına dönüştür
+    if (!events) return [];
+    
+    const formattedEvents = events.map(event => {
+      // Etkinlik saatlerini formatla
+      const startTime = format(new Date(event.start_time), 'HH:mm');
+      const endTime = format(new Date(event.end_time), 'HH:mm');
+      
+      // Katılımcı sayısını hesapla
+      const participantCount = event.participants?.length || 0;
+      
+      // Organizatörün adını birleştir
+      const organizerName = event.creator 
+        ? `${event.creator.first_name} ${event.creator.last_name}`
+        : 'Bilinmeyen';
+      
+      // Kullanıcı katılıyor mu kontrolü
+      const isAttending = userId ? userEventIds.includes(event.id) : false;
+      
+      // Spor kategorisini al
+      const category = event.sport?.name || 'Diğer';
+
+      // Frontend formatı
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        date: new Date(event.event_date),
+        time: startTime,
+        endTime: endTime,
+        location: event.location_name,
+        category: category,
+        participants: participantCount,
+        maxParticipants: event.max_participants,
+        status: event.status.toLowerCase(),
+        organizer: organizerName,
+        image: null, // Supabase'de saklanıyorsa buraya URL eklenebilir
+        isAttending: isAttending,
+      };
+    });
+
+    logger.info(`${formattedEvents.length} adet bugünkü etkinlik bulundu`);
+    return formattedEvents;
+  } catch (error) {
+    logger.error('Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu:', error);
+    throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
   }
 }; 

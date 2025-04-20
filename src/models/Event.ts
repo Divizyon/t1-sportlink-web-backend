@@ -102,6 +102,146 @@ import { z } from 'zod';
  *           items:
  *             $ref: '#/components/schemas/Report'
  *           description: Etkinlik raporları
+ *
+ *     EventParticipant:
+ *       type: object
+ *       required:
+ *         - id
+ *         - event_id
+ *         - user_id
+ *         - role
+ *         - joined_at
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           description: Katılımcı kaydının benzersiz tanımlayıcısı
+ *         event_id:
+ *           type: string
+ *           format: uuid
+ *           description: Etkinliğin ID'si
+ *         user_id:
+ *           type: string
+ *           format: uuid
+ *           description: Katılımcı kullanıcının ID'si
+ *         role:
+ *           type: string
+ *           enum: [PARTICIPANT, ORGANIZER]
+ *           description: Kullanıcının etkinlikteki rolü
+ *         joined_at:
+ *           type: string
+ *           format: date-time
+ *           description: Kullanıcının etkinliğe katılma tarihi
+ *
+ *     EventRating:
+ *       type: object
+ *       required:
+ *         - id
+ *         - event_id
+ *         - rating
+ *         - created_at
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           description: Değerlendirmenin benzersiz tanımlayıcısı
+ *         event_id:
+ *           type: string
+ *           format: uuid
+ *           description: Değerlendirilen etkinliğin ID'si
+ *         rating:
+ *           type: number
+ *           minimum: 1
+ *           maximum: 5
+ *           description: Etkinlik puanı (1-5 arası)
+ *         review:
+ *           type: string
+ *           description: İsteğe bağlı değerlendirme yorumu
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *           description: Değerlendirmenin oluşturulma tarihi
+ *
+ *     Report:
+ *       type: object
+ *       required:
+ *         - id
+ *         - reporter_id
+ *         - event_id
+ *         - report_reason
+ *         - report_date
+ *         - status
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           description: Raporun benzersiz tanımlayıcısı
+ *         reporter_id:
+ *           type: string
+ *           format: uuid
+ *           description: Raporu oluşturan kullanıcının ID'si
+ *         event_id:
+ *           type: string
+ *           format: uuid
+ *           description: Raporlanan etkinliğin ID'si
+ *         report_reason:
+ *           type: string
+ *           description: Rapor nedeni
+ *         report_date:
+ *           type: string
+ *           format: date-time
+ *           description: Raporun oluşturulma tarihi
+ *         status:
+ *           type: string
+ *           enum: [PENDING, REVIEWED, CLOSED]
+ *           description: Raporun durumu
+ *         admin_notes:
+ *           type: string
+ *           description: İsteğe bağlı yönetici notları
+ *
+ *     TodayEvent:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Etkinlik ID'si
+ *         title:
+ *           type: string
+ *           description: Etkinlik başlığı
+ *         description:
+ *           type: string
+ *           description: Etkinlik açıklaması
+ *         date:
+ *           type: string
+ *           format: date
+ *           description: Etkinlik tarihi
+ *         time:
+ *           type: string
+ *           description: Başlangıç saati (HH:MM)
+ *         endTime:
+ *           type: string
+ *           description: Bitiş saati (HH:MM)
+ *         location:
+ *           type: string
+ *           description: Etkinlik konumu
+ *         category:
+ *           type: string
+ *           description: Etkinlik kategorisi
+ *         participants:
+ *           type: number
+ *           description: Katılımcı sayısı
+ *         maxParticipants:
+ *           type: number
+ *           description: Maksimum katılımcı sayısı
+ *         status:
+ *           type: string
+ *           description: Etkinlik durumu
+ *         organizer:
+ *           type: string
+ *           description: Organizatör adı
+ *         isAttending:
+ *           type: boolean
+ *           description: Kullanıcı etkinliğe katılıyor mu
  */
 
 export const EventStatus = {
@@ -204,4 +344,21 @@ export class EventStatusError extends Error {
     super(message);
     this.name = 'EventStatusError';
   }
+}
+
+export interface TodayEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: Date;
+  time: string;
+  endTime: string;
+  location: string;
+  category: string;
+  participants: number;
+  maxParticipants: number;
+  status: string;
+  organizer: string;
+  image: string | null;
+  isAttending: boolean;
 } 
