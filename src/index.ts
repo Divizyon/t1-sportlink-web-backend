@@ -6,6 +6,7 @@ import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
 import eventRoutes from './routes/eventRoutes';
 import sportsRoutes from './routes/sportsRoutes';
+import securityRoutes from './routes/securityRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
@@ -49,6 +50,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/sports', sportsRoutes);
+app.use('/api/security', securityRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

@@ -139,4 +139,26 @@ export const restrictTo = (...roles: string[]) => {
 
     next();
   };
+};
+
+// Admin yetkisi kontrolü yapan middleware
+export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
+  // Önce kullanıcının giriş yapmış olduğunu kontrol et
+  if (!req.userProfile) {
+    return res.status(401).json({
+      success: false,
+      message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+    });
+  }
+  
+  // Kullanıcının admin rolüne sahip olup olmadığını kontrol et
+  if (req.userProfile.role !== 'ADMIN') {
+    return res.status(403).json({
+      success: false,
+      message: 'Bu işlemi gerçekleştirmek için admin yetkisine sahip olmalısınız.'
+    });
+  }
+  
+  // Eğer admin yetkisine sahipse, bir sonraki middleware'e veya route handler'a geç
+  next();
 }; 
