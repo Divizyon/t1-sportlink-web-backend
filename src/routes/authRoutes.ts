@@ -114,6 +114,30 @@ router.get('/google', AuthController.googleAuthRedirect);
 
 /**
  * @swagger
+ * /api/auth/callback:
+ *   get:
+ *     summary: OAuth callback handler
+ *     description: Handles the callback from OAuth providers like Google
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The OAuth code returned by provider
+ *     responses:
+ *       302:
+ *         description: Redirects to frontend after successful login
+ *       400:
+ *         description: Invalid code
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/callback', AuthController.handleOAuthCallback);
+
+/**
+ * @swagger
  * /api/auth/session/refresh:
  *   get:
  *     summary: Refresh authentication session

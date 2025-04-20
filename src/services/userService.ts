@@ -37,22 +37,19 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
   try {
     console.log('Starting user creation process for:', userData.email);
     
-    // Önce email'in kullanımda olup olmadığını kontrol et
-    const existingUser = await findUserByEmail(userData.email);
-    if (existingUser) {
-      console.log('Email already exists:', userData.email);
-      throw new Error('Bu e-posta adresi zaten kullanılıyor.');
-    }
-
+    // Önce email'in Supabase Auth'da kullanımda olup olmadığını kontrol et
+    // Bu kontrol doğrudan Auth servisi üzerinden yapılacak, users tablosunda değil
+    
     console.log('Creating auth user...');
-    // Auth user oluştur
+    // Sadece Auth user oluştur
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
       email_confirm: true,
       user_metadata: {
         first_name: userData.first_name,
-        last_name: userData.last_name
+        last_name: userData.last_name,
+        role: userData.role || 'USER'
       }
     });
 
@@ -69,30 +66,20 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
       throw new Error('Kullanıcı oluşturulamadı.');
     }
 
-    console.log('Creating user profile...');
-    // Kullanıcı profilini oluştur
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: userData.email,
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        role: userData.role || 'USER'
-      })
-      .select()
-      .single();
+    console.log('Auth user created successfully:', authData.user.id);
+    
+    // Users tablosuna kayıt eklemeden doğrudan auth verilerini dönüştürelim
+    const user: User = {
+      id: authData.user.id,
+      email: userData.email,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
+      role: userData.role || 'USER',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    if (error) {
-      console.error('Profile creation error:', error);
-      // Eğer profil oluşturma başarısız olursa auth user'ı da sil
-      console.log('Deleting auth user due to profile creation failure...');
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      throw error;
-    }
-
-    console.log('User created successfully:', data);
-    return data as User;
+    return user;
   } catch (error) {
     console.error('Error in createUser:', error);
     if (error instanceof Error) {
