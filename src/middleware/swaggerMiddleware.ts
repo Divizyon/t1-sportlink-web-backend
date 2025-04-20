@@ -27,7 +27,7 @@ export const setupSwagger = (app: express.Application): void => {
       },
       servers: [
         {
-          url: process.env.API_URL || 'http://localhost:3001',
+          url: process.env.API_URL || 'http://localhost:3000',
           description: 'SportLink API Sunucusu',
         },
       ],

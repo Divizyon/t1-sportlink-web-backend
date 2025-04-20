@@ -6,16 +6,19 @@ import { LoginDTO, CreateUserDTO } from '../models/User';
 export const register = async (req: Request, res: Response) => {
   try {
     const userData: CreateUserDTO = req.body;
+    console.log('Register attempt with data:', userData);
     
     // Kullanıcı oluştur
     const newUser = await userService.createUser(userData);
     if (!newUser) {
+      console.error('User creation failed: newUser is null');
       return res.status(500).json({
         status: 'error',
         message: 'Kullanıcı oluşturulurken bir hata oluştu.'
       });
     }
     
+    console.log('User created successfully:', newUser);
     res.status(201).json({
       status: 'success',
       data: {
@@ -29,9 +32,12 @@ export const register = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Register error:', error);
-    
+    console.error('Register error details:', error);
     if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       // Özel hata mesajlarını kontrol et
       if (error.message.includes('e-posta adresi zaten kullanılıyor')) {
         return res.status(400).json({
