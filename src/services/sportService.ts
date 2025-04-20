@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+import supabase from '../utils/supabaseHelper';
 import logger from '../utils/logger';
 
 export const getAllSports = async () => {

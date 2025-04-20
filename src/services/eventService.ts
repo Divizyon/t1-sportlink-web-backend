@@ -1,5 +1,5 @@
 import { Event, EventStatus, EventValidationSchema, UpdateEventStatusSchema, EventValidationError, EventNotFoundError, EventPermissionError, EventStatusError } from '../models/Event';
-import supabase, { supabaseAdmin } from '../config/supabase';
+import supabase, { getSupabaseAdmin } from '../utils/supabaseHelper';
 import { parseISO, addHours, isBefore, isAfter } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import logger from '../utils/logger';
@@ -19,7 +19,7 @@ export const findEventById = async (id: string): Promise<Event> => {
     logger.info(`Etkinlik aranıyor: ${id}`);
     
     // Basitleştirilmiş sorgu - sadece etkinlik verisi
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from('events')
       .select('*')
       .eq('id', id)
@@ -173,7 +173,7 @@ export const updateEventStatus = async (
     }
 
     // Optimistic locking için version kontrolü
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from('events')
       .update({ 
         status: status,
@@ -211,7 +211,7 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
     const now = new Date();
     logger.info(`Süresi dolmuş etkinlikleri tamamlandı olarak işaretleme işlemi başlatıldı. Şu anki zaman: ${now.toISOString()}`);
     
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('events')
       .update({ 
         status: EventStatus.COMPLETED,
@@ -255,7 +255,7 @@ export const createEvent = async (eventData: any) => {
     logger.info(`Supabase insert hazırlandı: ${JSON.stringify(eventDataToInsert, null, 2)}`);
 
     // Etkinliği oluştur - supabase yerine supabaseAdmin kullanıyoruz (RLS bypass)
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from('events')
       .insert([eventDataToInsert])
       .select()
@@ -286,7 +286,7 @@ export const getAllEvents = async () => {
   try {
     logger.info('Tüm etkinlikler getiriliyor');
     
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from('events')
       .select('*')
       .order('event_date', { ascending: true });

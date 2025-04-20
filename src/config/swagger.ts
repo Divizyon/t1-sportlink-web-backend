@@ -44,7 +44,7 @@ const swaggerSpec = swaggerJsdoc(options);
  * Swagger yapılandırmasını uygulama ile entegre eder
  * @param app Express uygulaması
  */
-export const setupSwagger = (app: Express): void => {
+const setupSwagger = (app: Express): void => {
   // Swagger dokümantasyonu endpoint'i
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -55,4 +55,6 @@ export const setupSwagger = (app: Express): void => {
   });
 
   console.log('Swagger dokümantasyonu şu adreste kullanılabilir: /api-docs');
-}; 
+};
+
+export default setupSwagger; 

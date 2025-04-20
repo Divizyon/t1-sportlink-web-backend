@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+import supabase from '../utils/supabaseHelper';
 import { LoginDTO } from '../models/User';
 
 export const login = async (credentials: LoginDTO) => {
@@ -12,6 +12,7 @@ export const login = async (credentials: LoginDTO) => {
 
     if (error) {
       console.error('Supabase auth error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
     
@@ -19,6 +20,10 @@ export const login = async (credentials: LoginDTO) => {
     return data;
   } catch (error) {
     console.error('Login error:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     throw error;
   }
 };

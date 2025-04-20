@@ -43,4 +43,4 @@ const router = express.Router();
  */
 router.get('/', SportController.getAllSports);
 
-export default router; 
+export default router;

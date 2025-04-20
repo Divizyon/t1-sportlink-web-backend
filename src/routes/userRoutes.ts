@@ -11,8 +11,55 @@ const router = express.Router();
  *   description: User management operations
  */
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       required:
+ *         - id
+ *         - name
+ *         - email
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: Kullanıcı kimliği
+ *         name:
+ *           type: string
+ *           description: Kullanıcının tam adı
+ *         email:
+ *           type: string
+ *           description: Kullanıcının e-posta adresi
+ *         role:
+ *           type: string
+ *           description: Kullanıcı rolü (örn. üye, admin)
+ *         status:
+ *           type: string
+ *           description: Kullanıcı durumu (örn. aktif, pasif)
+ *         joinDate:
+ *           type: string
+ *           format: date
+ *           description: Kullanıcının katılma tarihi (YYYY-MM-DD)
+ *         avatar:
+ *           type: string
+ *           description: Kullanıcı avatar resmi URL'si
+ *         registeredDate:
+ *           type: string
+ *           format: date
+ *           description: Kullanıcının kayıt tarihi (YYYY-MM-DD)
+ *         lastActive:
+ *           type: string
+ *           format: date
+ *           description: Kullanıcının son aktif olduğu tarih (YYYY-MM-DD)
+ */
+
 // All user routes are protected
 router.use(protect);
+
+// Kullanıcı detayları için rotalar - bunlar önce olmalı çünkü Express rotaları sırayla eşleştirir
+router.get('/details', UserController.getAllUserDetails);
+router.get('/details/:id', UserController.getUserDetailById);
 
 /**
  * @swagger
