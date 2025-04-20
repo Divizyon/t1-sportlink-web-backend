@@ -1,5 +1,6 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
-import { User, CreateUserDTO } from '../models/User';
+import { User, CreateUserDTO, UserDetail } from '../models/User';
+import { format } from 'date-fns';
 
 export const findUserById = async (id: string): Promise<User | null> => {
   try {
@@ -45,7 +46,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
-      email_confirm: true,
+      email_confirm: true, // E-posta doğrulama işlemini atla (geliştirme kolaylığı için)
       user_metadata: {
         first_name: userData.first_name,
         last_name: userData.last_name,
@@ -104,6 +105,50 @@ export const getAllUsers = async (): Promise<User[]> => {
     return data as User[];
   } catch (error) {
     console.error('Error getting all users:', error);
+    return [];
+  }
+};
+
+export const getUserDetails = async (): Promise<UserDetail[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, first_name, last_name, role, created_at, updated_at');
+
+    if (error) {
+      console.error('Error fetching user details:', error);
+      throw error;
+    }
+
+    // Varsayılan avatar yolu
+    const defaultAvatar = '/avatars/default.jpg';
+    
+    // Kullanıcı detaylarını dönüştürme
+    const userDetails: UserDetail[] = data.map((user: any, index: number) => {
+      const registeredDate = user.created_at 
+        ? format(new Date(user.created_at), 'yyyy-MM-dd')
+        : format(new Date(), 'yyyy-MM-dd');
+        
+      const lastActive = user.updated_at
+        ? format(new Date(user.updated_at), 'yyyy-MM-dd')
+        : format(new Date(), 'yyyy-MM-dd');
+        
+      return {
+        id: (user.id && !isNaN(Number(user.id))) ? Number(user.id) : index + 1,
+        name: `${user.first_name} ${user.last_name}`,
+        email: user.email,
+        role: user.role?.toLowerCase() === 'user' ? 'üye' : user.role?.toLowerCase() || 'üye',
+        status: 'aktif', // Varsayılan olarak aktif durumda
+        joinDate: registeredDate,
+        avatar: `${defaultAvatar.replace('.jpg', '')}${(index % 3) + 1}.jpg`, // Rastgele avatar atama
+        registeredDate: registeredDate,
+        lastActive: lastActive
+      };
+    });
+
+    return userDetails;
+  } catch (error) {
+    console.error('Error in getUserDetails:', error);
     return [];
   }
 }; 

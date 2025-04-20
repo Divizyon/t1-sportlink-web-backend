@@ -62,6 +62,67 @@ router.get('/', restrictTo('admin'), UserController.getAllUsers);
 
 /**
  * @swagger
+ * /api/users/details:
+ *   get:
+ *     summary: Get all user details
+ *     description: Retrieve formatted user details for frontend display
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User details in frontend-friendly format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   description: Number of user details returned
+ *                   example: 3
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     USER_DETAILS:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/UserDetail'
+ *             example:
+ *               status: success
+ *               results: 3
+ *               data:
+ *                 USER_DETAILS:
+ *                   - id: 1
+ *                     name: "Ahmet Koç"
+ *                     email: "ahmet@example.com"
+ *                     role: "üye"
+ *                     status: "aktif"
+ *                     joinDate: "2023-01-15"
+ *                     avatar: "/avatars/user1.jpg"
+ *                     registeredDate: "2023-01-10"
+ *                     lastActive: "2023-07-15"
+ *                   - id: 2
+ *                     name: "Ayşe Yılmaz"
+ *                     email: "ayse@example.com"
+ *                     role: "üye"
+ *                     status: "aktif"
+ *                     joinDate: "2023-02-20"
+ *                     avatar: "/avatars/user2.jpg"
+ *                     registeredDate: "2023-02-18"
+ *                     lastActive: "2023-07-14"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/details', UserController.getUserDetails);
+
+/**
+ * @swagger
  * /api/users/test:
  *   get:
  *     summary: Test API route
@@ -150,6 +211,6 @@ router.get('/test', (req: Request, res: Response) => {
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/:id', UserController.getUserById);
+router.get('/:id', protect, UserController.getUserById);
 
 export default router;
