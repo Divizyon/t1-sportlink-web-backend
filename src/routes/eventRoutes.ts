@@ -1,8 +1,49 @@
 import express from 'express';
 import * as EventController from '../controllers/EventController';
-import { protect } from '../middleware/authMiddleware';
+import { protect, optionalAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * tags:
+ *   name: Events
+ *   description: Etkinlik yönetimi
+ */
+
+/**
+ * @swagger
+ * /api/events/today:
+ *   get:
+ *     summary: Bugünkü aktif etkinliklerin listesini döndürür
+ *     description: Bugüne ait aktif etkinliklerin listesini frontend formatında döndürür
+ *     tags: [Events]
+ *     parameters:
+ *       - in: header
+ *         name: Authorization
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Oturum token'ı (varsa user_id kullanılır)
+ *     responses:
+ *       200:
+ *         description: Başarılı yanıt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/TodayEvent'
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get('/today', optionalAuth, EventController.getTodayEvents);
 
 /**
  * @swagger
