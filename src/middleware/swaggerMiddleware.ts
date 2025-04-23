@@ -99,6 +99,91 @@ export const setupSwagger = (app: express.Application): void => {
           },
         },
         schemas: {
+          // Rapor modeli
+          Report: {
+            type: 'object',
+            required: ['id', 'konu', 'raporlayan', 'tarih', 'tur', 'oncelik', 'durum'],
+            properties: {
+              id: {
+                type: 'string',
+                description: 'Benzersiz rapor kimliği'
+              },
+              konu: {
+                type: 'string',
+                description: 'Raporun konusu'
+              },
+              raporlayan: {
+                type: 'string',
+                description: 'Raporu gönderen kullanıcının adı'
+              },
+              tarih: {
+                type: 'string',
+                description: 'Raporun oluşturulma tarihi (GG.AA.YYYY formatında)'
+              },
+              tur: {
+                type: 'string',
+                enum: ['Kullanıcı', 'Etkinlik'],
+                description: 'Raporun türü'
+              },
+              oncelik: {
+                type: 'string',
+                enum: ['Yüksek', 'Orta', 'Düşük'],
+                description: 'Raporun önceliği'
+              },
+              durum: {
+                type: 'string',
+                enum: ['Beklemede', 'İnceleniyor', 'Çözüldü', 'Reddedildi'],
+                description: 'Raporun mevcut durumu'
+              }
+            }
+          },
+          // Rapor veri formatı (Dashboard)
+          ReportData: {
+            type: 'object',
+            required: ['id', 'subject', 'description', 'reportedBy', 'reportedDate', 'priority', 'status', 'entityId', 'entityType'],
+            properties: {
+              id: {
+                type: 'number',
+                description: 'Benzersiz rapor ID'
+              },
+              subject: {
+                type: 'string',
+                description: 'Raporun konusu'
+              },
+              description: {
+                type: 'string',
+                description: 'Rapor açıklaması'
+              },
+              reportedBy: {
+                type: 'string',
+                description: 'Raporu oluşturan kullanıcı adı'
+              },
+              reportedDate: {
+                type: 'string',
+                format: 'date',
+                description: 'Raporun oluşturulma tarihi (YYYY-MM-DD formatında)'
+              },
+              priority: {
+                type: 'string',
+                enum: ['high', 'medium', 'low'],
+                description: 'Raporun önceliği'
+              },
+              status: {
+                type: 'string',
+                enum: ['pending', 'reviewing', 'resolved', 'rejected'],
+                description: 'Raporun mevcut durumu'
+              },
+              entityId: {
+                type: 'number',
+                description: 'Raporlanan varlığın ID\'si'
+              },
+              entityType: {
+                type: 'string',
+                enum: ['user', 'event'],
+                description: 'Raporlanan varlığın türü'
+              }
+            }
+          },
           // Kullanıcı modeli
           User: {
             type: 'object',
@@ -558,7 +643,7 @@ export const setupSwagger = (app: express.Application): void => {
         },
       },
     },
-    apis: ['./src/routes/*.ts'],
+    apis: ['./src/routes/*.ts', './src/models/*.ts'],
   };
 
   // Swagger doküman oluşturma

@@ -377,4 +377,134 @@ export const getTodayEvents = async (req: Request, res: Response) => {
       message: 'Bugünkü etkinlikleri getirirken bir hata oluştu.'
     });
   }
+};
+
+/**
+ * Etkinliği günceller
+ */
+export const updateEvent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Oturum açmış kullanıcının kimliğini al
+    const userId = req.userProfile?.id;
+    
+    // Kullanıcı kimliği kontrolü
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    logger.info(`Etkinlik güncelleme isteği: eventId=${id}, userId=${userId}`);
+    
+    try {
+      // Etkinliği güncelle
+      const updatedEvent = await eventService.updateEvent(id, req.body, userId);
+      
+      logger.info(`Etkinlik güncellendi: ${id}`);
+      
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          event: updatedEvent
+        }
+      });
+    } catch (error) {
+      if (error instanceof EventNotFoundError) {
+        return res.status(404).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      if (error instanceof EventPermissionError) {
+        return res.status(403).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      if (error instanceof EventStatusError) {
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      if (error instanceof EventValidationError) {
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      logger.error('Etkinlik güncelleme hatası:', error);
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinlik güncelleme hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Etkinlik güncellenirken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Etkinliği siler
+ */
+export const deleteEvent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Oturum açmış kullanıcının kimliğini al
+    const userId = req.userProfile?.id;
+    
+    // Kullanıcı kimliği kontrolü
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    logger.info(`Etkinlik silme isteği: eventId=${id}, userId=${userId}`);
+    
+    try {
+      // Etkinliği sil
+      const result = await eventService.deleteEvent(id, userId);
+      
+      logger.info(`Etkinlik silindi: ${id}`);
+      
+      return res.status(200).json({
+        status: 'success',
+        message: result.message
+      });
+    } catch (error) {
+      if (error instanceof EventNotFoundError) {
+        return res.status(404).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      if (error instanceof EventPermissionError) {
+        return res.status(403).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      logger.error('Etkinlik silme hatası:', error);
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinlik silme hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Etkinlik silinirken bir hata oluştu.'
+    });
+  }
 }; 
