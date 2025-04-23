@@ -1,7 +1,8 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { LoginDTO } from '../models/User';
+import { SecurityService } from './securityService';
 
-export const login = async (credentials: LoginDTO) => {
+export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => {
   try {
     console.log('Login attempt:', credentials.email);
     
@@ -12,10 +13,33 @@ export const login = async (credentials: LoginDTO) => {
 
     if (error) {
       console.error('Supabase auth error:', error);
+      
+      // Başarısız login girişimini kaydet
+      await SecurityService.createLog({
+        type: 'login',
+        admin: credentials.email,
+        ip: ip,
+        status: 'error',
+        action: `Başarısız giriş: ${error.message}`
+      });
+      
       throw error;
     }
     
     console.log('Login successful for:', credentials.email);
+    
+    // Başarılı login işlemini kaydet
+    const userFullName = data.user?.user_metadata?.first_name && data.user?.user_metadata?.last_name 
+      ? `${data.user.user_metadata.first_name} ${data.user.user_metadata.last_name}` 
+      : data.user?.email || 'Bilinmeyen Kullanıcı';
+    
+    await SecurityService.createLog({
+      type: 'login',
+      admin: userFullName,
+      ip: ip,
+      status: 'success',
+      action: `Başarılı giriş / ${data.user?.email || 'bilinmeyen'}`
+    });
     
     // Kullanıcı başarıyla giriş yaptıysa ve last_sign_in_at verisi varsa
     if (data.user && data.user.last_sign_in_at) {

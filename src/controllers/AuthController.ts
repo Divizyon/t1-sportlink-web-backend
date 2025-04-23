@@ -2,16 +2,30 @@ import { Request, Response } from 'express';
 import * as authService from '../services/authService';
 import * as userService from '../services/userService';
 import { LoginDTO, CreateUserDTO } from '../models/User';
+import { SecurityService } from '../services/securityService';
 
 export const register = async (req: Request, res: Response) => {
   try {
     const userData: CreateUserDTO = req.body;
     console.log('Register attempt with data:', userData);
     
+    // IP adresini al
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    
     // Kullanıcı oluştur - Sadece Auth kullanıcısı oluşturulur, users tablosuna eklenmez
     const newUser = await userService.createUser(userData);
     if (!newUser) {
       console.error('User creation failed: newUser is null');
+      
+      // Başarısız kayıt işlemini logla
+      await SecurityService.createLog({
+        type: 'user_update',
+        admin: userData.email,
+        ip,
+        status: 'error',
+        action: `Kayıt başarısız`
+      });
+      
       return res.status(500).json({
         status: 'error',
         message: 'Kullanıcı oluşturulurken bir hata oluştu.'
@@ -19,6 +33,16 @@ export const register = async (req: Request, res: Response) => {
     }
     
     console.log('User created successfully in Auth:', newUser.id);
+    
+    // Başarılı kayıt işlemini logla
+    await SecurityService.createLog({
+      type: 'user_update',
+      admin: `${newUser.first_name} ${newUser.last_name}`,
+      ip,
+      status: 'success',
+      action: `Yeni kayıt / ${newUser.email}`
+    });
+    
     res.status(201).json({
       status: 'success',
       data: {
@@ -33,6 +57,23 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Register error details:', error);
+    
+    // IP adresini al
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    
+    // Kayıt hatası logla
+    try {
+      await SecurityService.createLog({
+        type: 'user_update',
+        admin: req.body?.email || 'Bilinmeyen',
+        ip,
+        status: 'error',
+        action: `Kayıt başarısız`
+      });
+    } catch (logError) {
+      console.error('Register security log error:', logError);
+    }
+    
     if (error instanceof Error) {
       console.error('Error name:', error.name);
       console.error('Error message:', error.message);
@@ -58,7 +99,11 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const credentials: LoginDTO = req.body;
-    const authData = await authService.login(credentials);
+    
+    // IP adresini al
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    
+    const authData = await authService.login(credentials, ip);
     
     if (!authData.user) {
       return res.status(401).json({
@@ -115,7 +160,33 @@ export const googleAuthRedirect = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   try {
+    // Güvenlik logu için kullanıcı bilgilerini al
+    const userId = req.user?.id || 'Bilinmeyen';
+    const userEmail = req.user?.email || 'Bilinmeyen';
+    const firstName = req.user?.user_metadata?.first_name || '';
+    const lastName = req.user?.user_metadata?.last_name || '';
+    const userFullName = firstName && lastName 
+      ? `${firstName} ${lastName}` 
+      : userEmail;
+      
+    // IP adresini al
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    
     await authService.logout();
+    
+    // Güvenlik log kaydı oluştur
+    try {
+      await SecurityService.createLog({
+        type: 'logout',
+        admin: userFullName,
+        ip,
+        status: 'success',
+        action: `Başarılı çıkış / ${userEmail}`
+      });
+    } catch (logError) {
+      console.error('Logout security log error:', logError);
+    }
+    
     res.status(200).json({
       status: 'success',
       message: 'Başarıyla çıkış yapıldı.'
