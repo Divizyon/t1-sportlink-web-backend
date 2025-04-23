@@ -261,27 +261,35 @@ export type EventParticipantRole = typeof EventParticipantRole[keyof typeof Even
 
 // Zod şemaları ile validasyon
 export const EventValidationSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().or(z.number()),
   creator_id: z.string().uuid(),
-  sport_id: z.string().uuid(),
+  sport_id: z.string().uuid().or(z.number()),
   title: z.string().min(3).max(100),
   description: z.string().max(1000),
-  event_date: z.coerce.date(),
-  start_time: z.coerce.date(),
-  end_time: z.coerce.date(),
+  event_date: z.string().or(z.coerce.date()),
+  start_time: z.string().or(z.coerce.date()),
+  end_time: z.string().or(z.coerce.date()),
   location_name: z.string().max(200),
   location_latitude: z.number().min(-90).max(90),
   location_longitude: z.number().min(-180).max(180),
   max_participants: z.number().int().min(2).max(1000),
   status: z.enum([EventStatus.ACTIVE, EventStatus.CANCELLED, EventStatus.COMPLETED]),
-  created_at: z.coerce.date(),
-  updated_at: z.coerce.date()
+  created_at: z.string().or(z.coerce.date()),
+  updated_at: z.string().or(z.coerce.date()),
+  sport: z.optional(z.object({
+    id: z.number(),
+    icon: z.string(),
+    name: z.string(),
+    description: z.string()
+  })),
+  sport_category: z.optional(z.string())
 }).refine(
-  (data) => data.end_time > data.start_time,
+  (data) => {
+    const endTime = typeof data.end_time === 'string' ? new Date(data.end_time) : data.end_time;
+    const startTime = typeof data.start_time === 'string' ? new Date(data.start_time) : data.start_time;
+    return endTime > startTime;
+  },
   { message: "Bitiş zamanı başlangıç zamanından sonra olmalıdır" }
-).refine(
-  (data) => data.start_time > new Date(),
-  { message: "Başlangıç zamanı şu andan sonra olmalıdır" }
 );
 
 export const UpdateEventStatusSchema = z.object({
