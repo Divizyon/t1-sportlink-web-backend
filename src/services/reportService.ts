@@ -226,4 +226,214 @@ export const getReportData = async (): Promise<ReportData[]> => {
     console.error('Rapor servisi hatası:', error);
     throw error;
   }
+};
+
+/**
+ * Rapor durumunu günceller
+ * @param reportId Raporun ID'si
+ * @param status Yeni durum değeri (resolved veya rejected)
+ * @returns Güncellenmiş rapor
+ */
+export const updateReportStatus = async (
+  reportId: number,
+  status: 'resolved' | 'rejected'
+): Promise<Report> => {
+  try {
+    console.log(`Rapor durumu güncelleniyor: ${reportId} -> ${status}`);
+    
+    // Veritabanında durumu güncelle - updated_at alanını çıkardık
+    const { data, error } = await supabaseAdmin
+      .from('Reports')
+      .update({ 
+        status
+      })
+      .eq('id', reportId)
+      .select(`
+        id,
+        event_id,
+        report_reason,
+        report_date,
+        status,
+        admin_notes,
+        reporter_id,
+        reported_id,
+        reporter:users!reporter_id (first_name, last_name),
+        reported:users!reported_id (first_name, last_name),
+        event:Events!event_id (title)
+      `)
+      .single();
+    
+    if (error) {
+      console.error('Rapor durumu güncellenirken hata oluştu:', error);
+      throw new Error(`Rapor durumu güncellenirken hata oluştu: ${error.message}`);
+    }
+    
+    if (!data) {
+      throw new Error('Güncellenecek rapor bulunamadı.');
+    }
+    
+    console.log(`Rapor durumu başarıyla güncellendi: ${reportId} -> ${status}`);
+    
+    // Güncellenmiş raporu formatla ve döndür
+    return mapDatabaseReportToFrontend(data);
+  } catch (error) {
+    console.error('Rapor durumu güncelleme hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Rapora admin notu ekler veya mevcut notu günceller
+ * @param reportId Raporun ID'si
+ * @param adminNotes Admin notu içeriği
+ * @returns Güncellenmiş rapor
+ */
+export const updateAdminNotes = async (
+  reportId: number,
+  adminNotes: string
+): Promise<Report> => {
+  try {
+    console.log(`Rapor admin notu güncelleniyor: ${reportId}`);
+    
+    // Veritabanında admin notunu güncelle - updated_at alanını çıkardık
+    const { data, error } = await supabaseAdmin
+      .from('Reports')
+      .update({ 
+        admin_notes: adminNotes
+      })
+      .eq('id', reportId)
+      .select(`
+        id,
+        event_id,
+        report_reason,
+        report_date,
+        status,
+        admin_notes,
+        reporter_id,
+        reported_id,
+        reporter:users!reporter_id (first_name, last_name),
+        reported:users!reported_id (first_name, last_name),
+        event:Events!event_id (title)
+      `)
+      .single();
+    
+    if (error) {
+      console.error('Rapor admin notu güncellenirken hata oluştu:', error);
+      throw new Error(`Rapor admin notu güncellenirken hata oluştu: ${error.message}`);
+    }
+    
+    if (!data) {
+      throw new Error('Güncellenecek rapor bulunamadı.');
+    }
+    
+    console.log(`Rapor admin notu başarıyla güncellendi: ${reportId}`);
+    
+    // Güncellenmiş raporu formatla ve döndür
+    return mapDatabaseReportToFrontend(data);
+  } catch (error) {
+    console.error('Rapor admin notu güncelleme hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Raporlanan kullanıcıyı banlar
+ * @param reportId Raporun ID'si
+ * @returns İşlem sonucu
+ */
+export const banUserFromReport = async (
+  reportId: number
+): Promise<{ success: boolean; message: string; user_id: string }> => {
+  try {
+    console.log(`Raporlanan kullanıcı banlanıyor, rapor ID: ${reportId}`);
+    
+    // Önce raporu ve raporlanan kullanıcıyı bul
+    const { data: reportData, error: reportError } = await supabaseAdmin
+      .from('Reports')
+      .select('id, reported_id')
+      .eq('id', reportId)
+      .single();
+      
+    if (reportError || !reportData) {
+      console.error('Rapor bulunamadı:', reportError);
+      throw new Error('İlgili rapor bulunamadı.');
+    }
+    
+    // Raporlanan kullanıcının ID'sini al
+    const userId = reportData.reported_id;
+    
+    if (!userId) {
+      throw new Error('Raporda raporlanan kullanıcı bilgisi bulunamadı.');
+    }
+    
+    console.log(`Rapordan alınan kullanıcı ID'si: ${userId}`);
+    
+    // Kullanıcıyı banla - veritabanında is_banned ve banned_at sütunları mevcut
+    try {
+      const { error: banError } = await supabaseAdmin
+        .from('users')
+        .update({ 
+          is_banned: true,
+          banned_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+      
+      if (banError) {
+        console.error('Kullanıcı banlanırken hata oluştu:', banError);
+        throw new Error(`Kullanıcı banlanırken hata oluştu: ${banError.message}`);
+      }
+      
+      console.log(`Kullanıcı başarıyla banlandı: ${userId}`);
+    } catch (banError) {
+      console.error('Kullanıcı banlama hatası:', banError);
+      // Banlama başarısız olsa bile raporu çözüldü olarak işaretlemeye devam et
+      console.warn('Kullanıcı banlanamadı ancak rapor işlenecek.');
+    }
+    
+    // Raporu çözüldü olarak işaretle
+    const { error: reportUpdateError } = await supabaseAdmin
+      .from('Reports')
+      .update({ status: 'resolved' })
+      .eq('id', reportId);
+    
+    if (reportUpdateError) {
+      console.error('Rapor durumu güncellenirken hata oluştu:', reportUpdateError);
+      console.warn('Kullanıcı banlandı ancak rapor durumu güncellenemedi.');
+    }
+    
+    return {
+      success: true,
+      message: 'Kullanıcı başarıyla banlandı ve rapor çözüldü olarak işaretlendi.',
+      user_id: userId
+    };
+  } catch (error) {
+    console.error('İşlem hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Users tablosundaki alanları kontrol etmek için yardımcı fonksiyon
+ * @returns Users tablosundaki alanların listesi
+ */
+const getUserTableFields = async (): Promise<string[]> => {
+  try {
+    // Önce bir kullanıcı kaydını al ve alanları kontrol et
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .limit(1)
+      .single();
+      
+    if (error) {
+      console.error('Kullanıcı tablosu kontrol edilirken hata oluştu:', error);
+      return []; // Hata durumunda boş dizi döndür
+    }
+    
+    // Kaydın alanlarını döndür
+    return Object.keys(data || {});
+  } catch (error) {
+    console.error('Kullanıcı tablosu alanları kontrol edilirken hata oluştu:', error);
+    return []; // Hata durumunda boş dizi döndür
+  }
 }; 

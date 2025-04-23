@@ -506,4 +506,208 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
     logger.error('Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu:', error);
     throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
   }
+};
+
+/**
+ * Etkinlik bilgilerini günceller
+ * @param eventId Güncellenecek etkinliğin ID'si
+ * @param eventData Güncellenecek veriler
+ * @param userId İşlemi yapan kullanıcının ID'si
+ * @returns Güncellenmiş etkinlik verisi
+ */
+export const updateEvent = async (
+  eventId: string,
+  eventData: any,
+  userId: string
+): Promise<any> => {
+  try {
+    logger.info(`Etkinlik güncelleme: eventId=${eventId}, userId=${userId}`, {
+      eventData: JSON.stringify(eventData, null, 2)
+    });
+    
+    // Etkinliği bul
+    const existingEvent = await findEventById(eventId);
+    logger.info(`Mevcut etkinlik bulundu: ${JSON.stringify(existingEvent, null, 2)}`);
+
+    // Yetki kontrolü
+    const hasPermission = await canUpdateEventStatus(userId, existingEvent);
+    if (!hasPermission) {
+      throw new EventPermissionError('Bu etkinliği güncelleme yetkiniz bulunmamaktadır.');
+    }
+    
+    // Tamamlanmış etkinlikler güncellenemez
+    if (existingEvent.status === EventStatus.COMPLETED) {
+      throw new EventStatusError('Tamamlanmış etkinlikler güncellenemez.');
+    }
+    
+    // Validasyon kontrolü: Başlangıç/bitiş zamanları
+    if (
+      (eventData.start_time && eventData.end_time) || 
+      (eventData.start_time && existingEvent.end_time) ||
+      (existingEvent.start_time && eventData.end_time)
+    ) {
+      const startTime = new Date(eventData.start_time || existingEvent.start_time);
+      const endTime = new Date(eventData.end_time || existingEvent.end_time);
+      
+      if (endTime <= startTime) {
+        throw new EventValidationError('Bitiş zamanı başlangıç zamanından sonra olmalıdır.');
+      }
+    }
+    
+    // Güncelleme verilerini hazırla, sadece gönderilen alanları güncelle
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+    
+    // Güncellenebilecek alanlar
+    const updatableFields = [
+      'title', 'description', 'sport_id', 'event_date', 
+      'start_time', 'end_time', 'location_name', 
+      'location_latitude', 'location_longitude', 'max_participants'
+    ];
+    
+    // Gönderilen alanları updateData'ya ekle
+    updatableFields.forEach(field => {
+      if (eventData[field] !== undefined) {
+        // Field adı farklı olan özel durumlar
+        if (field === 'location_latitude' && eventData.location_lat !== undefined) {
+          updateData[field] = parseFloat(eventData.location_lat);
+        } 
+        else if (field === 'location_longitude' && eventData.location_long !== undefined) {
+          updateData[field] = parseFloat(eventData.location_long);
+        }
+        // Standart alanlar
+        else if (eventData[field] !== undefined) {
+          // Sayısal değerler için dönüşüm
+          if (field === 'sport_id' && typeof eventData[field] === 'string' && !isNaN(Number(eventData[field]))) {
+            updateData[field] = Number(eventData[field]);
+          } 
+          else if (field === 'max_participants') {
+            updateData[field] = Number(eventData[field]);
+          }
+          // Konum değerleri için dönüşüm
+          else if (field === 'location_latitude' || field === 'location_longitude') {
+            updateData[field] = parseFloat(eventData[field]);
+          }
+          // Diğer tüm alanlar
+          else {
+            updateData[field] = eventData[field];
+          }
+        }
+      }
+    });
+    
+    logger.info(`Güncelleme verisi hazırlandı: ${JSON.stringify(updateData, null, 2)}`);
+    
+    // Güncelleme için boş veri kontrolü
+    if (Object.keys(updateData).length <= 1) { // Sadece updated_at varsa
+      throw new EventValidationError('Güncellenecek veri bulunamadı.');
+    }
+    
+    // Veritabanında güncelleme işlemi
+    const { data, error } = await supabaseAdmin
+      .from('Events')
+      .update(updateData)
+      .eq('id', eventId)
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*)
+      `)
+      .single();
+
+    if (error) {
+      logger.error(`Etkinlik güncelleme hatası: ${error.message}`, error);
+      
+      // Özel hata kontrolleri
+      if (error.code === '23503') {
+        throw new Error('Geçersiz ilişki hatası. Spor ID geçerli değil.');
+      }
+      
+      throw new Error('Etkinlik güncellenirken bir hata oluştu.');
+    }
+
+    if (!data) {
+      throw new EventStatusError('Etkinlik başka bir kullanıcı tarafından değiştirilmiş olabilir. Lütfen sayfayı yenileyip tekrar deneyin.');
+    }
+
+    logger.info(`Etkinlik başarıyla güncellendi: ${eventId}`);
+    return formatEvent(data);
+  } catch (error) {
+    logger.error(`updateEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
+      stack: error instanceof Error ? error.stack : 'Stack yok'
+    });
+    throw error;
+  }
+};
+
+/**
+ * Etkinliği siler
+ * @param eventId Silinecek etkinliğin ID'si
+ * @param userId İşlemi yapan kullanıcının ID'si
+ * @returns Başarı mesajı
+ */
+export const deleteEvent = async (
+  eventId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    logger.info(`Etkinlik silme: eventId=${eventId}, userId=${userId}`);
+    
+    // Etkinliği bul
+    const existingEvent = await findEventById(eventId);
+    logger.info(`Silinecek etkinlik bulundu: ${existingEvent.id}`);
+
+    // Yetki kontrolü
+    const hasPermission = await canUpdateEventStatus(userId, existingEvent);
+    if (!hasPermission) {
+      throw new EventPermissionError('Bu etkinliği silme yetkiniz bulunmamaktadır.');
+    }
+    
+    // Etkinlikten önce etkinlik katılımcılarını sil (foreign key constraints)
+    const { error: participantsError } = await supabaseAdmin
+      .from('Event_Participants')
+      .delete()
+      .eq('event_id', eventId);
+    
+    if (participantsError) {
+      logger.error(`Etkinlik katılımcılarını silme hatası: ${participantsError.message}`);
+      throw new Error('Etkinlik katılımcıları silinirken bir hata oluştu.');
+    }
+    
+    // Etkinliğe yapılmış raporları sil (eğer varsa)
+    try {
+      const { error: reportsError } = await supabaseAdmin
+        .from('Reports')
+        .delete()
+        .eq('related_event', eventId);
+      
+      if (reportsError) {
+        logger.warn(`Etkinlik raporlarını silme hatası: ${reportsError.message}`);
+      }
+    } catch (reportsError) {
+      logger.warn(`Etkinlik raporlarını silme hatası: ${reportsError instanceof Error ? reportsError.message : 'Bilinmeyen hata'}`);
+    }
+    
+    // Etkinliği sil
+    const { error: deleteError } = await supabaseAdmin
+      .from('Events')
+      .delete()
+      .eq('id', eventId);
+    
+    if (deleteError) {
+      logger.error(`Etkinlik silme hatası: ${deleteError.message}`);
+      throw new Error('Etkinlik silinirken bir hata oluştu.');
+    }
+    
+    logger.info(`Etkinlik başarıyla silindi: ${eventId}`);
+    return {
+      success: true,
+      message: 'Etkinlik başarıyla silindi.'
+    };
+  } catch (error) {
+    logger.error(`deleteEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
+      stack: error instanceof Error ? error.stack : 'Stack yok'
+    });
+    throw error;
+  }
 }; 
