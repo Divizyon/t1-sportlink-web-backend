@@ -111,8 +111,9 @@ router.get('/', EventController.getAllEvents);
  *                 maxLength: 1000
  *                 description: Etkinlik açıklaması
  *               sport_id:
- *                 type: string
- *                 format: uuid
+ *                 type: integer
+ *                 format: int64
+ *                 example: 6
  *                 description: Etkinliğin spor türünün ID'si
  *               event_date:
  *                 type: string

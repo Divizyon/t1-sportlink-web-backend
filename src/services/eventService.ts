@@ -14,14 +14,56 @@ const convertFromUTC = (date: Date): Date => {
   return toZonedTime(date, DEFAULT_TIMEZONE);
 };
 
-export const findEventById = async (id: string): Promise<Event> => {
+/**
+ * Etkinlik verilerini standart formata dönüştürür.
+ * @param event Etkinlik verisi
+ * @param sportData Spor verisi (opsiyonel)
+ * @returns Standart formatta etkinlik verisi
+ */
+export const formatEvent = (event: any, sportData?: any): any => {
+  if (!event) return null;
+  
+  // Sport bilgisini hazırla
+  const sport = sportData || {
+    id: event.sport_id || event.sport?.id,
+    icon: event.sport?.icon || "⚽", // Varsayılan ikon
+    name: event.sport?.name || event.sport_category || "Diğer",
+    description: event.sport?.description || ""
+  };
+  
+  // Standart formatta etkinlik nesnesi döndür
+  return {
+    id: event.id,
+    sport_id: event.sport_id,
+    title: event.title,
+    description: event.description,
+    event_date: event.event_date,
+    start_time: event.start_time,
+    end_time: event.end_time,
+    location_name: event.location_name,
+    location_latitude: event.location_latitude,
+    location_longitude: event.location_longitude,
+    max_participants: event.max_participants,
+    status: event.status,
+    created_at: event.created_at,
+    updated_at: event.updated_at,
+    creator_id: event.creator_id,
+    sport,
+    sport_category: sport.name
+  };
+};
+
+export const findEventById = async (id: string): Promise<any> => {
   try {
     logger.info(`Etkinlik aranıyor: ${id}`);
     
-    // Basitleştirilmiş sorgu - sadece etkinlik verisi
+    // Etkinlik verisi ile birlikte spor verilerini de al
     const { data, error } = await supabaseAdmin
       .from('Events')
-      .select('*')
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*)
+      `)
       .eq('id', id)
       .single();
 
@@ -36,7 +78,8 @@ export const findEventById = async (id: string): Promise<Event> => {
     }
 
     logger.info(`Etkinlik bulundu: ${id}`);
-    return data as Event;
+    // Standart formata dönüştür
+    return formatEvent(data);
   } catch (error) {
     if (error instanceof EventNotFoundError) {
       throw error;
@@ -146,7 +189,7 @@ export const updateEventStatus = async (
   eventId: string,
   status: EventStatus,
   userId: string
-): Promise<Event> => {
+): Promise<any> => {
   try {
     logger.info(`Etkinlik durumu güncelleme: eventId=${eventId}, status=${status}, userId=${userId}`);
     
@@ -180,7 +223,10 @@ export const updateEventStatus = async (
         updated_at: new Date().toISOString()
       })
       .eq('id', eventId)
-      .select()
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*)
+      `)
       .single();
 
     if (error) {
@@ -193,7 +239,7 @@ export const updateEventStatus = async (
     }
 
     logger.info(`Etkinlik durumu başarıyla güncellendi: ${eventId} -> ${status}`);
-    return await findEventById(eventId);
+    return formatEvent(data);
   } catch (error) {
     if (error instanceof EventNotFoundError || 
         error instanceof EventPermissionError || 
@@ -286,7 +332,6 @@ export const createEvent = async (eventData: any) => {
     }
     
     // Supabase'e gönderilecek veriyi hazırla
-    // creator_id UUID olmalı, sport_id integer olmalı
     const eventDataToInsert = {
       title: eventData.title,
       description: eventData.description || '',
@@ -298,8 +343,8 @@ export const createEvent = async (eventData: any) => {
       start_time: eventData.start_time,
       end_time: eventData.end_time,
       location_name: eventData.location_name,
-      location_latitude: parseFloat(eventData.location_lat),
-      location_longitude: parseFloat(eventData.location_long),
+      location_latitude: parseFloat(eventData.location_lat || eventData.location_latitude || 0),
+      location_longitude: parseFloat(eventData.location_long || eventData.location_longitude || 0),
       max_participants: Number(eventData.max_participants),
       status: EventStatus.ACTIVE,
       created_at: new Date().toISOString(), // Şu anki zamanı ekle
@@ -313,7 +358,10 @@ export const createEvent = async (eventData: any) => {
       const { data, error } = await supabaseAdmin
         .from('Events')
         .insert([eventDataToInsert])
-        .select()
+        .select(`
+          *,
+          sport:Sports!Events_sport_id_fkey(*)
+        `)
         .single();
 
       if (error) {
@@ -360,7 +408,8 @@ export const createEvent = async (eventData: any) => {
       }
 
       logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`, { data: JSON.stringify(data, null, 2) });
-      return data;
+      // Standart formata dönüştür
+      return formatEvent(data);
     } catch (dbError) {
       logger.error(`Veritabanı işlemi hatası: ${dbError instanceof Error ? dbError.message : 'Bilinmeyen hata'}`, {
         stack: dbError instanceof Error ? dbError.stack : 'Stack yok'
@@ -380,7 +429,10 @@ export const getAllEvents = async () => {
     
     const { data, error } = await supabaseAdmin
       .from('Events')
-      .select('*')
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*)
+      `)
       .order('event_date', { ascending: true });
     
     if (error) {
@@ -389,7 +441,7 @@ export const getAllEvents = async () => {
     }
     
     logger.info(`${data.length} etkinlik bulundu`);
-    return data;
+    return data.map(event => formatEvent(event));
   } catch (error) {
     logger.error('getAllEvents hatası:', error);
     throw error;
@@ -400,7 +452,7 @@ export const getAllEvents = async () => {
  * Bugünün etkinliklerini getiren fonksiyon
  * @returns Bugünkü etkinlik listesi frontend formatında
  */
-export const getTodayEvents = async (userId?: string): Promise<TodayEvent[]> => {
+export const getTodayEvents = async (userId?: string): Promise<any[]> => {
   try {
     // Bugünün başlangıç ve bitiş zamanlarını al
     const today = new Date();
@@ -448,46 +500,8 @@ export const getTodayEvents = async (userId?: string): Promise<TodayEvent[]> => 
     // Verileri frontend formatına dönüştür
     if (!events) return [];
     
-    const formattedEvents = events.map(event => {
-      // Etkinlik saatlerini formatla
-      const startTime = format(new Date(event.start_time), 'HH:mm');
-      const endTime = format(new Date(event.end_time), 'HH:mm');
-      
-      // Katılımcı sayısını hesapla
-      const participantCount = event.participants?.length || 0;
-      
-      // Organizatörün adını birleştir
-      const organizerName = event.creator 
-        ? `${event.creator.first_name} ${event.creator.last_name}`
-        : 'Bilinmeyen';
-      
-      // Kullanıcı katılıyor mu kontrolü
-      const isAttending = userId ? userEventIds.includes(event.id) : false;
-      
-      // Spor kategorisini al
-      const category = event.sport?.name || 'Diğer';
-
-      // Frontend formatı
-      return {
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        date: new Date(event.event_date),
-        time: startTime,
-        endTime: endTime,
-        location: event.location_name,
-        category: category,
-        participants: participantCount,
-        maxParticipants: event.max_participants,
-        status: event.status.toLowerCase(),
-        organizer: organizerName,
-        image: null, // Supabase'de saklanıyorsa buraya URL eklenebilir
-        isAttending: isAttending,
-      };
-    });
-
-    logger.info(`${formattedEvents.length} adet bugünkü etkinlik bulundu`);
-    return formattedEvents;
+    // Standart formatta tüm etkinlikleri döndür
+    return events.map(event => formatEvent(event));
   } catch (error) {
     logger.error('Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu:', error);
     throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
