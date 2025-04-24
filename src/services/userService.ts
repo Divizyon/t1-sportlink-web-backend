@@ -151,4 +151,146 @@ export const getUserDetails = async (): Promise<UserDetail[]> => {
     console.error('Error in getUserDetails:', error);
     return [];
   }
+};
+
+export const updateUserProfile = async (userId: string, userData: Partial<User>): Promise<User | null> => {
+  try {
+    // Get existing user first to ensure it exists
+    const existingUser = await findUserById(userId);
+    
+    if (!existingUser) {
+      throw new Error('Kullanıcı bulunamadı.');
+    }
+    
+    console.log('Updating user profile for ID:', userId);
+    
+    // Update the user in Supabase database
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        username: userData.username,
+        phone: userData.phone,
+        default_location_latitude: userData.default_location_latitude,
+        default_location_longitude: userData.default_location_longitude,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
+    
+    // Also update the user metadata in Auth
+    if (userData.first_name || userData.last_name) {
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        {
+          user_metadata: {
+            first_name: userData.first_name || existingUser.first_name,
+            last_name: userData.last_name || existingUser.last_name
+          }
+        }
+      );
+      
+      if (authUpdateError) {
+        console.error('Error updating auth user metadata:', authUpdateError);
+        // Continue anyway as DB update succeeded
+      }
+    }
+    
+    return data as User;
+  } catch (error) {
+    console.error('Error in updateUserProfile:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Kullanıcı profili güncellenirken bir hata oluştu.');
+  }
+};
+
+export const uploadAvatar = async (userId: string, file: Express.Multer.File): Promise<User | null> => {
+  try {
+    // Önce kullanıcıyı kontrol et
+    const existingUser = await findUserById(userId);
+    
+    if (!existingUser) {
+      throw new Error('Kullanıcı bulunamadı.');
+    }
+    
+    console.log('Uploading avatar for user ID:', userId);
+    
+    // Dosya adını benzersiz yap
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${userId}_${Date.now()}.${fileExt}`;
+    const filePath = `users/avatars/${fileName}`;
+    
+    // Dosyayı Supabase Storage'a yükle
+    const { error: uploadError } = await supabase.storage
+      .from('sportlink-files')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: '3600',
+        upsert: true
+      });
+    
+    if (uploadError) {
+      console.error('Avatar upload error:', uploadError);
+      throw uploadError;
+    }
+    
+    // Yüklenen dosyanın genel URL'sini al
+    const { data: urlData } = supabase.storage
+      .from('public')
+      .getPublicUrl(filePath);
+      
+    if (!urlData || !urlData.publicUrl) {
+      throw new Error('Avatar URL alınamadı.');
+    }
+    
+    const avatarUrl = urlData.publicUrl;
+    
+    // Kullanıcı profilini güncelle
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        profile_picture: avatarUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating user avatar:', error);
+      throw error;
+    }
+    
+    // Ayrıca kullanıcının Auth metadatasını da güncelle
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      {
+        user_metadata: {
+          avatar_url: avatarUrl
+        }
+      }
+    );
+    
+    if (authUpdateError) {
+      console.error('Error updating auth user metadata:', authUpdateError);
+      // Devam et, DB güncelleme başarılı olduğu için
+    }
+    
+    return data as User;
+  } catch (error) {
+    console.error('Error in uploadAvatar:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Avatar yüklenirken bir hata oluştu.');
+  }
 }; 

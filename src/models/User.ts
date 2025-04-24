@@ -117,6 +117,41 @@
  *           type: string
  *           format: password
  *           description: User's password
+ *     UpdateUserProfileDTO:
+ *       type: object
+ *       properties:
+ *         first_name:
+ *           type: string
+ *           description: User's first name
+ *         last_name:
+ *           type: string
+ *           description: User's last name
+ *         username:
+ *           type: string
+ *           description: User's username
+ *         phone:
+ *           type: string
+ *           description: User's phone number
+ *         default_location_latitude:
+ *           type: number
+ *           description: User's default location latitude
+ *         default_location_longitude:
+ *           type: number
+ *           description: User's default location longitude
+ *     ChangePasswordDTO:
+ *       type: object
+ *       required:
+ *         - currentPassword
+ *         - newPassword
+ *       properties:
+ *         currentPassword:
+ *           type: string
+ *           format: password
+ *           description: User's current password
+ *         newPassword:
+ *           type: string
+ *           format: password
+ *           description: User's new password
  */
 
 export interface User {
@@ -127,6 +162,11 @@ export interface User {
   role: 'ADMIN' | 'STAFF' | 'USER';
   created_at: string;
   updated_at: string;
+  username?: string;
+  phone?: string;
+  profile_picture?: string;
+  default_location_latitude?: number;
+  default_location_longitude?: number;
 }
 
 export interface UserDetail {
@@ -152,4 +192,18 @@ export interface CreateUserDTO {
 export interface LoginDTO {
   email: string;
   password: string;
+}
+
+export interface UpdateUserProfileDTO {
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  phone?: string;
+  default_location_latitude?: number;
+  default_location_longitude?: number;
+}
+
+export interface ChangePasswordDTO {
+  currentPassword: string;
+  newPassword: string;
 } 

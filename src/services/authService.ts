@@ -252,4 +252,44 @@ export const handleOAuthCallback = async (code: string) => {
     console.error('OAuth callback handling error:', error);
     throw error;
   }
+};
+
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<boolean> => {
+  try {
+    // Önce kullanıcıyı bul
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !userData.user) {
+      console.error('Error getting user data:', userError);
+      throw new Error('Kullanıcı bilgileri alınamadı.');
+    }
+    
+    // Mevcut şifreyi doğrula - bunun için Supabase'in signInWithPassword methodunu kullanacağız
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: userData.user.email as string,
+      password: currentPassword
+    });
+    
+    // Eğer giriş hatası varsa, şifre yanlıştır
+    if (signInError || !signInData.user) {
+      console.error('Current password verification failed:', signInError);
+      throw new Error('Mevcut şifre hatalı.');
+    }
+    
+    // Şifre doğrulandı, yeni şifreyi güncelle
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      throw updateError;
+    }
+    
+    console.log('Password successfully updated for user ID:', userId);
+    return true;
+  } catch (error) {
+    console.error('Change password error:', error);
+    throw error;
+  }
 }; 

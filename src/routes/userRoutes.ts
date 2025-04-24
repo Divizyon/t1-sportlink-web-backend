@@ -62,6 +62,116 @@ router.get('/', restrictTo('admin'), UserController.getAllUsers);
 
 /**
  * @swagger
+ * /api/users/profile:
+ *   get:
+ *     summary: Get current user's profile
+ *     description: Retrieve the authenticated user's profile information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profile:
+ *                       $ref: '#/components/schemas/User'
+ *             example:
+ *               status: success
+ *               data:
+ *                 profile:
+ *                   id: 550e8400-e29b-41d4-a716-446655440000
+ *                   email: user@example.com
+ *                   first_name: John
+ *                   last_name: Doe
+ *                   username: johndoe
+ *                   phone: "+905551234567"
+ *                   role: USER
+ *                   created_at: 2023-01-01T00:00:00.000Z
+ *                   updated_at: 2023-01-01T00:00:00.000Z
+ *                   profile_picture: "/avatars/default1.jpg"
+ *                   default_location_latitude: 40.9909
+ *                   default_location_longitude: 29.0210
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/profile', UserController.getUserProfile);
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update user profile
+ *     description: Update the authenticated user's profile information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateUserProfileDTO'
+ *     responses:
+ *       200:
+ *         description: Profile successfully updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Profil başarıyla güncellendi.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *             example:
+ *               status: success
+ *               message: Profil başarıyla güncellendi.
+ *               data:
+ *                 user:
+ *                   id: 550e8400-e29b-41d4-a716-446655440000
+ *                   email: user@example.com
+ *                   first_name: John
+ *                   last_name: Smith
+ *                   username: johnsmith
+ *                   phone: "+905551234567"
+ *                   role: USER
+ *                   created_at: 2023-01-01T00:00:00.000Z
+ *                   updated_at: 2023-07-15T00:00:00.000Z
+ *                   profile_picture: "/avatars/default1.jpg"
+ *                   default_location_latitude: 40.9909
+ *                   default_location_longitude: 29.0210
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.put('/profile', UserController.updateUserProfile);
+
+/**
+ * @swagger
  * /api/users/details:
  *   get:
  *     summary: Get all user details
