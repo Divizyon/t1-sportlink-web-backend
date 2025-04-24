@@ -12,7 +12,7 @@ export const scheduleCompletedEventsJob = (): CronJob => {
         await markExpiredEventsAsCompleted();
         logger.info('Expired events marked as completed successfully.');
       } catch (error) {
-        logger.error('Error marking expired events as completed:', error);
+        logger.error(`Error marking expired events as completed: ${JSON.stringify(error)}`);
       }
     },
     null, // onComplete

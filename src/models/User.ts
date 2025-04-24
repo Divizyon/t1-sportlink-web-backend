@@ -143,6 +143,7 @@
  *       required:
  *         - currentPassword
  *         - newPassword
+ *         - confirmNewPassword
  *       properties:
  *         currentPassword:
  *           type: string
@@ -152,6 +153,10 @@
  *           type: string
  *           format: password
  *           description: User's new password
+ *         confirmNewPassword:
+ *           type: string
+ *           format: password
+ *           description: Confirmation of user's new password
  */
 
 export interface User {
@@ -206,4 +211,5 @@ export interface UpdateUserProfileDTO {
 export interface ChangePasswordDTO {
   currentPassword: string;
   newPassword: string;
+  confirmNewPassword: string;
 } 

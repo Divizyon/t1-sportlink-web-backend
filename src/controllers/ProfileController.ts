@@ -1,96 +1,36 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import * as authService from '../services/authService';
 import * as userService from '../services/userService';
 import { SecurityService } from '../services/securityService';
 import { ChangePasswordDTO } from '../models/User';
+import { UnauthorizedError, BadRequestError } from '../errors/customErrors';
+import logger from '../utils/logger';
+import { handleError } from '../utils/errorHandler';
 
-export const changePassword = async (req: Request, res: Response) => {
+export const changePassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = req.userProfile?.id;
-    
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+    const userId = req.user?.id;
+
     if (!userId) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Oturum açılmamış.'
-      });
+      throw new UnauthorizedError('User not authenticated');
     }
-    
-    const { currentPassword, newPassword } = req.body as ChangePasswordDTO;
-    
-    // Veri doğrulama
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Mevcut şifre ve yeni şifre gereklidir.'
-      });
+
+    // Validate password requirements
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestError('New password must be at least 8 characters long');
     }
-    
-    // Yeni şifre için basit validasyon - en az 6 karakter
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Yeni şifre en az 6 karakter olmalıdır.'
-      });
+
+    if (newPassword !== confirmNewPassword) {
+      throw new BadRequestError('New password and confirmation do not match');
     }
-    
-    // IP adresini al
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
-    
-    // Şifreyi değiştir
+
     await authService.changePassword(userId, currentPassword, newPassword);
     
-    // Başarılı şifre değiştirme işlemini logla
-    try {
-      await SecurityService.createLog({
-        type: 'user_update',
-        admin: req.userProfile?.email || 'Bilinmeyen',
-        ip,
-        status: 'success',
-        action: `Şifre güncelleme / ${req.userProfile?.email}`
-      });
-    } catch (logError) {
-      console.error('Password change security log error:', logError);
-    }
-    
-    res.status(200).json({
-      status: 'success',
-      message: 'Şifreniz başarıyla güncellendi.'
-    });
-  } catch (error) {
-    console.error('Change password error:', error);
-    
-    // IP adresini al
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
-    
-    // Başarısız şifre değiştirme işlemini logla
-    try {
-      await SecurityService.createLog({
-        type: 'user_update',
-        admin: req.userProfile?.email || 'Bilinmeyen',
-        ip,
-        status: 'error',
-        action: `Şifre güncelleme başarısız`
-      });
-    } catch (logError) {
-      console.error('Password change security log error:', logError);
-    }
-    
-    // Hata mesajını belirle - özel hata mesajı varsa kullan
-    let errorMessage = 'Şifre güncellenirken bir hata oluştu.';
-    if (error instanceof Error) {
-      if (error.message.includes('Mevcut şifre hatalı')) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Mevcut şifreniz hatalı.'
-        });
-      }
-      errorMessage = error.message;
-    }
-    
-    res.status(500).json({
-      status: 'error',
-      message: errorMessage
-    });
+    logger.info(`Password successfully changed for user: ${userId}`);
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error: unknown) {
+    handleError(error as Error, req, res, next);
   }
 };
 

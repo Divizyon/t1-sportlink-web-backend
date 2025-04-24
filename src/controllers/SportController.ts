@@ -13,7 +13,7 @@ export const getAllSports = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    logger.error('Get all sports error:', error);
+    logger.error(`Get all sports error: ${JSON.stringify(error)}`);
     res.status(500).json({
       status: 'error',
       message: 'Spor türleri getirilirken bir hata oluştu.'

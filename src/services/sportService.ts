@@ -9,13 +9,13 @@ export const getAllSports = async () => {
       .order('name', { ascending: true });
 
     if (error) {
-      logger.error('Error fetching sports:', error);
+      logger.error(`Spor arama hatası: ${JSON.stringify(error)}`);
       throw new Error('Spor türleri getirilemedi');
     }
 
     return sports;
   } catch (error) {
-    logger.error('Error in getAllSports service:', error);
+    logger.error(`Error in getAllSports service: ${JSON.stringify(error)}`);
     throw error;
   }
 }; 

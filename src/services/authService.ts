@@ -1,6 +1,7 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { LoginDTO } from '../models/User';
 import { SecurityService } from './securityService';
+import { UnauthorizedError } from '../errors/UnauthorizedError';
 
 export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => {
   try {
@@ -20,7 +21,7 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
         admin: credentials.email,
         ip: ip,
         status: 'error',
-        action: `Başarısız giriş: ${error.message}`
+        action: `Basarisiz giris: ${error.message}`
       });
       
       throw error;
@@ -254,42 +255,40 @@ export const handleOAuthCallback = async (code: string) => {
   }
 };
 
-export const changePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<boolean> => {
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<void> => {
   try {
-    // Önce kullanıcıyı bul
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !userData.user) {
-      console.error('Error getting user data:', userError);
-      throw new Error('Kullanıcı bilgileri alınamadı.');
+    // First get the user email
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData?.email) {
+      console.error('Error fetching user email:', userError);
+      throw new Error('Unable to find user email');
     }
     
-    // Mevcut şifreyi doğrula - bunun için Supabase'in signInWithPassword methodunu kullanacağız
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: userData.user.email as string,
+    // Now verify the current password with the email
+    const { data: user, error: signInError } = await supabase.auth.signInWithPassword({
+      email: userData.email,
       password: currentPassword
     });
-    
-    // Eğer giriş hatası varsa, şifre yanlıştır
-    if (signInError || !signInData.user) {
-      console.error('Current password verification failed:', signInError);
-      throw new Error('Mevcut şifre hatalı.');
+
+    if (signInError || !user) {
+      throw new UnauthorizedError('Current password is incorrect');
     }
-    
-    // Şifre doğrulandı, yeni şifreyi güncelle
+
+    // Update to the new password
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword
     });
-    
+
     if (updateError) {
-      console.error('Password update error:', updateError);
-      throw updateError;
+      throw new Error('Failed to update password');
     }
-    
-    console.log('Password successfully updated for user ID:', userId);
-    return true;
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('Error in AuthService.changePassword:', error);
     throw error;
   }
 }; 

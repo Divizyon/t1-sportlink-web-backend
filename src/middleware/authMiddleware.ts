@@ -63,7 +63,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     
     next();
   } catch (error) {
-    logger.error('Auth middleware error:', error);
+    logger.error(`Auth middleware error: ${error}`);
     return res.status(401).json({
       status: 'error',
       message: 'Kimlik doğrulama başarısız oldu.'
@@ -121,7 +121,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     next();
   } catch (error) {
     // Hata durumunda bile isteği ilerlet
-    logger.error('Opsiyonel kimlik doğrulama hatası:', error);
+    logger.error(`Opsiyonel kimlik doğrulama hatası: ${error}`);
     next();
   }
 };

@@ -68,7 +68,7 @@ export const findEventById = async (id: string): Promise<any> => {
       .single();
 
     if (error) {
-      logger.error(`Etkinlik arama hatası: ${error.message}`, error);
+      logger.error(`Etkinlik arama hatası: ${error.message}`);
       throw new EventNotFoundError(id);
     }
 
@@ -84,7 +84,7 @@ export const findEventById = async (id: string): Promise<any> => {
     if (error instanceof EventNotFoundError) {
       throw error;
     }
-    logger.error('Find event error:', error);
+    logger.error(`Find event error: ${JSON.stringify(error)}`);
     throw new Error('Etkinlik aranırken bir hata oluştu.');
   }
 };
@@ -98,13 +98,13 @@ export const isUserAdmin = async (userId: string): Promise<boolean> => {
       .single();
 
     if (error) {
-      console.error('Check admin error:', error);
+      console.error(`Check admin error: ${JSON.stringify(error)}`);
       throw new Error('Kullanıcı rolü kontrol edilirken bir hata oluştu.');
     }
 
     return data?.role === 'ADMIN';
   } catch (error) {
-    console.error('Admin check error:', error);
+    console.error(`Admin check error: ${JSON.stringify(error)}`);
     throw error;
   }
 };
@@ -118,7 +118,7 @@ export const canUpdateEventStatus = async (userId: string, event: Event): Promis
     // Etkinlik sahibi kontrolü
     return userId === event.creator_id;
   } catch (error) {
-    console.error('Permission check error:', error);
+    console.error(`Permission check error: ${JSON.stringify(error)}`);
     throw new EventPermissionError('Yetki kontrolü yapılırken bir hata oluştu.');
   }
 };
@@ -180,7 +180,7 @@ export const validateStatusUpdate = async (
 
     return { isValid: true, message: '' };
   } catch (error) {
-    logger.error('Durum validasyon hatası:', error);
+    logger.error(`Durum validasyon hatası: ${JSON.stringify(error)}`);
     return { isValid: false, message: 'Durum validasyonu sırasında bir hata oluştu.' };
   }
 };
@@ -230,7 +230,7 @@ export const updateEventStatus = async (
       .single();
 
     if (error) {
-      logger.error(`Etkinlik durumu güncelleme hatası: ${error.message}`, error);
+      logger.error(`Etkinlik durumu güncelleme hatası: ${error.message}`);
       throw new Error('Etkinlik durumu güncellenirken bir hata oluştu.');
     }
 
@@ -247,7 +247,7 @@ export const updateEventStatus = async (
         error instanceof EventValidationError) {
       throw error;
     }
-    logger.error('Update event status error:', error);
+    logger.error(`Update event status error: ${JSON.stringify(error)}`);
     throw error;
   }
 };
@@ -267,13 +267,13 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
       .lt('end_time', now.toISOString());
 
     if (error) {
-      logger.error('Süresi dolmuş etkinlikleri işaretleme hatası:', error);
+      logger.error(`Süresi dolmuş etkinlikleri işaretleme hatası: ${JSON.stringify(error)}`);
       throw new Error('Süresi dolmuş etkinlikler tamamlandı olarak işaretlenirken bir hata oluştu.');
     }
     
     logger.info('Süresi dolmuş etkinlikler başarıyla tamamlandı olarak işaretlendi');
   } catch (error) {
-    logger.error('Süresi dolmuş etkinlikleri işaretleme hatası:', error);
+    logger.error(`Süresi dolmuş etkinlikleri işaretleme hatası: ${JSON.stringify(error)}`);
     throw error;
   }
 };
@@ -365,16 +365,11 @@ export const createEvent = async (eventData: any) => {
         .single();
 
       if (error) {
-        logger.error(`Supabase insert hatası: ${error.message}`, { error: JSON.stringify(error, null, 2) });
+        logger.error(`Supabase insert hatası: ${error.message}`);
         
         // Genel hata kodları kontrolü
         if (error.code) {
-          logger.error(`PostgreSQL hata kodu: ${error.code}`, { 
-            code: error.code,
-            details: error.details || 'Detay yok',
-            message: error.message || 'Mesaj yok',
-            hint: error.hint || 'İpucu yok'
-          });
+          logger.error(`PostgreSQL hata kodu: ${error.code}, details: ${error.details || 'Detay yok'}, message: ${error.message || 'Mesaj yok'}, hint: ${error.hint || 'İpucu yok'}`);
         }
         
         if (error.code === '23503') { // Foreign key violation
@@ -407,13 +402,11 @@ export const createEvent = async (eventData: any) => {
         throw new Error('Etkinlik oluşturuldu ancak veri döndürülemedi');
       }
 
-      logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`, { data: JSON.stringify(data, null, 2) });
+      logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id} - ${JSON.stringify(data, null, 2)}`);
       // Standart formata dönüştür
       return formatEvent(data);
     } catch (dbError) {
-      logger.error(`Veritabanı işlemi hatası: ${dbError instanceof Error ? dbError.message : 'Bilinmeyen hata'}`, {
-        stack: dbError instanceof Error ? dbError.stack : 'Stack yok'
-      });
+      logger.error(`Veritabanı işlemi hatası: ${dbError instanceof Error ? dbError.message : 'Bilinmeyen hata'} - Stack: ${dbError instanceof Error ? dbError.stack : 'Stack yok'}`);
       throw dbError;
     }
   } catch (error) {
@@ -436,14 +429,14 @@ export const getAllEvents = async () => {
       .order('event_date', { ascending: true });
     
     if (error) {
-      logger.error(`Etkinlikleri getirme hatası: ${error.message}`, error);
+      logger.error(`Etkinlikleri getirme hatası: ${error.message}`);
       throw new Error('Etkinlikler getirilemedi');
     }
     
     logger.info(`${data.length} etkinlik bulundu`);
     return data.map(event => formatEvent(event));
   } catch (error) {
-    logger.error('getAllEvents hatası:', error);
+    logger.error(`getAllEvents hatası: ${JSON.stringify(error)}`);
     throw error;
   }
 };
@@ -459,10 +452,7 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
     const startOfToday = startOfDay(today);
     const endOfToday = endOfDay(today);
     
-    logger.info('Bugünün etkinlikleri alınıyor', {
-      startOfToday: startOfToday.toISOString(),
-      endOfToday: endOfToday.toISOString()
-    });
+    logger.info(`Bugünün etkinlikleri alınıyor - StartOfToday: ${startOfToday.toISOString()}, EndOfToday: ${endOfToday.toISOString()}`);
 
     // Bugünün etkinliklerini getir - tüm ilişkileri spesifik olarak belirt
     const { data: events, error } = await supabaseAdmin
@@ -478,7 +468,7 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       .eq('status', EventStatus.ACTIVE);
     
     if (error) {
-      logger.error('Bugünün etkinlikleri alınırken hata oluştu:', error);
+      logger.error(`Bugünün etkinlikleri alınırken hata oluştu: ${JSON.stringify(error)}`);
       throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
     }
 
@@ -491,7 +481,7 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       : { data: [], error: null };
     
     if (participationError) {
-      logger.error('Kullanıcı katılım bilgisi alınırken hata oluştu:', participationError);
+      logger.error(`Kullanıcı katılım bilgisi alınırken hata oluştu: ${JSON.stringify(participationError)}`);
     }
     
     // Kullanıcının katıldığı etkinlik ID'lerini al
@@ -503,7 +493,7 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
     // Standart formatta tüm etkinlikleri döndür
     return events.map(event => formatEvent(event));
   } catch (error) {
-    logger.error('Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu:', error);
+    logger.error(`Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu: ${JSON.stringify(error)}`);
     throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
   }
 };
@@ -521,9 +511,7 @@ export const updateEvent = async (
   userId: string
 ): Promise<any> => {
   try {
-    logger.info(`Etkinlik güncelleme: eventId=${eventId}, userId=${userId}`, {
-      eventData: JSON.stringify(eventData, null, 2)
-    });
+    logger.info(`Etkinlik güncelleme: eventId=${eventId}, userId=${userId} - Veriler: ${JSON.stringify(eventData, null, 2)}`);
     
     // Etkinliği bul
     const existingEvent = await findEventById(eventId);
@@ -616,7 +604,7 @@ export const updateEvent = async (
       .single();
 
     if (error) {
-      logger.error(`Etkinlik güncelleme hatası: ${error.message}`, error);
+      logger.error(`Etkinlik güncelleme hatası: ${error.message}`);
       
       // Özel hata kontrolleri
       if (error.code === '23503') {
@@ -633,9 +621,7 @@ export const updateEvent = async (
     logger.info(`Etkinlik başarıyla güncellendi: ${eventId}`);
     return formatEvent(data);
   } catch (error) {
-    logger.error(`updateEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
-      stack: error instanceof Error ? error.stack : 'Stack yok'
-    });
+    logger.error(`updateEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'} - Stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
     throw error;
   }
 };
@@ -705,9 +691,7 @@ export const deleteEvent = async (
       message: 'Etkinlik başarıyla silindi.'
     };
   } catch (error) {
-    logger.error(`deleteEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
-      stack: error instanceof Error ? error.stack : 'Stack yok'
-    });
+    logger.error(`deleteEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'} - Stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
     throw error;
   }
 }; 

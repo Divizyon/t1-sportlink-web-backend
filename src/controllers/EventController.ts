@@ -92,11 +92,7 @@ export const createEvent = async (req: Request, res: Response) => {
     
     // Kullanıcı kimliği kontrolü
     if (!userId) {
-      logger.error("Etkinlik oluşturma hatası: Kullanıcı kimliği bulunamadı", { 
-        auth: req.headers.authorization ? "Bearer token var" : "Bearer token yok",
-        reqUser: JSON.stringify(req.user || "undefined"),
-        reqUserProfile: JSON.stringify(req.userProfile || "undefined")
-      });
+      logger.error(`Etkinlik oluşturma hatası: Kullanıcı kimliği bulunamadı. Auth: ${req.headers.authorization ? "Bearer token var" : "Bearer token yok"}, reqUser: ${JSON.stringify(req.user || "undefined")}, reqUserProfile: ${JSON.stringify(req.userProfile || "undefined")}`);
       return res.status(401).json({
         status: 'error',
         message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
@@ -104,7 +100,7 @@ export const createEvent = async (req: Request, res: Response) => {
     }
     
     try {
-      logger.info("Etkinlik oluşturma isteği:", req.body);
+      logger.info(`Etkinlik oluşturma isteği: ${JSON.stringify(req.body)}`);
       logger.info(`Kullanıcı ID: ${userId}, Tip: ${typeof userId}`);
       
       // Veritabanında kullanıcı kontrolü
@@ -134,25 +130,12 @@ export const createEvent = async (req: Request, res: Response) => {
               location_name, location_lat, location_long, max_participants } = req.body;
       
       // Veri tiplerini kontrol et
-      logger.info("Veri tipleri:", {
-        sport_id: typeof sport_id === 'string' ? `string: ${sport_id}` : typeof sport_id,
-        location_lat: typeof location_lat === 'string' ? `string: ${location_lat}` : typeof location_lat,
-        location_long: typeof location_long === 'string' ? `string: ${location_long}` : typeof location_long,
-        max_participants: typeof max_participants === 'string' ? `string: ${max_participants}` : typeof max_participants
-      });
+      logger.info(`Veri tipleri: sport_id: ${typeof sport_id === 'string' ? `string: ${sport_id}` : typeof sport_id}, location_id: ${typeof location_lat === 'string' ? `string: ${location_lat}` : typeof location_lat}, location_long: ${typeof location_long === 'string' ? `string: ${location_long}` : typeof location_long}, max_participants: ${typeof max_participants === 'string' ? `string: ${max_participants}` : typeof max_participants}`);
       
       // Zorunlu alanları kontrol et
       if (!title || !sport_id || !event_date || !start_time || !end_time || 
           !location_name || !max_participants) {
-        logger.error("Eksik alan hatası:", {
-          title: !!title, 
-          sport_id: !!sport_id, 
-          event_date: !!event_date, 
-          start_time: !!start_time, 
-          end_time: !!end_time, 
-          location_name: !!location_name, 
-          max_participants: !!max_participants
-        });
+        logger.error(`Eksik alan hatası: title: ${!!title}, description: ${!!description}, event_date: ${!!event_date}, start_time: ${!!start_time}, end_time: ${!!end_time}, sport_id: ${!!sport_id}, max_participants: ${!!max_participants}`);
         return res.status(400).json({
           status: 'error',
           message: 'Tüm zorunlu alanları doldurun.'
@@ -161,14 +144,8 @@ export const createEvent = async (req: Request, res: Response) => {
       
       // Tarih tiplerini kontrol et
       try {
-        logger.info("Tarih formatları:", {
-          event_date_raw: event_date,
-          event_date_valid: !isNaN(Date.parse(event_date)),
-          start_time_raw: start_time,
-          start_time_valid: !isNaN(Date.parse(start_time)),
-          end_time_raw: end_time,
-          end_time_valid: !isNaN(Date.parse(end_time))
-        });
+        const parsed_date = Date.parse(event_date);
+        logger.info(`Tarih formatları: event_date_raw: ${event_date}, event_date_parsed: ${parsed_date}, start_time: ${start_time}, start_time_valid: ${!isNaN(Date.parse(start_time))}, end_time: ${end_time}, end_time_valid: ${!isNaN(Date.parse(end_time))}`);
       } catch (dateError) {
         logger.error(`Tarih doğrulama hatası: ${dateError instanceof Error ? dateError.message : 'Bilinmeyen hata'}`);
       }
@@ -188,7 +165,7 @@ export const createEvent = async (req: Request, res: Response) => {
       
       try {
         const newEvent = await eventService.createEvent(newEventData);
-        logger.info("Etkinlik başarıyla oluşturuldu:", newEvent);
+        logger.info(`Etkinlik başarıyla oluşturuldu: ${JSON.stringify(newEvent)}`);
 
         // Başarılı yanıt
         return res.status(201).json({
@@ -198,9 +175,7 @@ export const createEvent = async (req: Request, res: Response) => {
           }
         });
       } catch (serviceError) {
-        logger.error(`Etkinlik servis hatası: ${serviceError instanceof Error ? serviceError.message : 'Bilinmeyen hata'}`, {
-          stack: serviceError instanceof Error ? serviceError.stack : 'Stack yok'
-        });
+        logger.error(`Etkinlik servis hatası: ${serviceError instanceof Error ? serviceError.message : 'Bilinmeyen hata'}. Stack: ${serviceError instanceof Error ? serviceError.stack : 'Stack yok'}`);
         
         // PostgreSQL hata kodlarını kontrol et
         if (serviceError instanceof Error && serviceError.message.includes('23503')) {
@@ -214,9 +189,7 @@ export const createEvent = async (req: Request, res: Response) => {
         throw serviceError;
       }
     } catch (error: any) {
-      logger.error(`Etkinlik oluşturma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
-        stack: error instanceof Error ? error.stack : 'Stack yok'
-      });
+      logger.error(`Etkinlik oluşturma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}. Stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
       
       // Hata mesajlarını işle
       if (error instanceof EventValidationError) {
@@ -250,9 +223,7 @@ export const createEvent = async (req: Request, res: Response) => {
       throw error;
     }
   } catch (error) {
-    logger.error(`Etkinlik oluşturma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
-      stack: error instanceof Error ? error.stack : 'Stack yok'
-    });
+    logger.error(`Etkinlik oluşturma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}. Stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
     return res.status(500).json({
       status: 'error',
       message: 'Etkinlik oluşturulurken bir hata oluştu.'
@@ -371,7 +342,7 @@ export const getTodayEvents = async (req: Request, res: Response) => {
       data: events
     });
   } catch (error) {
-    logger.error('Bugünkü etkinlikleri getirirken hata oluştu:', error);
+    logger.error(`Bugünkü etkinlikleri getirirken hata oluştu: ${JSON.stringify(error)}`);
     res.status(500).json({
       status: 'error',
       message: 'Bugünkü etkinlikleri getirirken bir hata oluştu.'
@@ -440,11 +411,11 @@ export const updateEvent = async (req: Request, res: Response) => {
         });
       }
       
-      logger.error('Etkinlik güncelleme hatası:', error);
+      logger.error(`Etkinlik güncelleme hatası: ${JSON.stringify(error)}`);
       throw error;
     }
   } catch (error) {
-    logger.error('Etkinlik güncelleme hatası:', error);
+    logger.error(`Etkinlik güncelleme hatası: ${JSON.stringify(error)}`);
     res.status(500).json({
       status: 'error',
       message: 'Etkinlik güncellenirken bir hata oluştu.'
@@ -497,11 +468,11 @@ export const deleteEvent = async (req: Request, res: Response) => {
         });
       }
       
-      logger.error('Etkinlik silme hatası:', error);
+      logger.error(`Etkinlik silme hatası: ${JSON.stringify(error)}`);
       throw error;
     }
   } catch (error) {
-    logger.error('Etkinlik silme hatası:', error);
+    logger.error(`Etkinlik silme hatası: ${JSON.stringify(error)}`);
     res.status(500).json({
       status: 'error',
       message: 'Etkinlik silinirken bir hata oluştu.'
