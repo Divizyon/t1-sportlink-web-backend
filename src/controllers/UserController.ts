@@ -50,14 +50,19 @@ export const getUserById = async (req: Request, res: Response) => {
 
 export const getUserDetails = async (req: Request, res: Response) => {
   try {
-    const userDetails = await userService.getUserDetails();
+    const { id } = req.params;
+    const userDetails = await userService.getUserDetailsById(id);
     
+    if (!userDetails) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Kullanıcı bulunamadı.'
+      });
+    }
+
     res.status(200).json({
       status: 'success',
-      results: userDetails.length,
-      data: {
-        USER_DETAILS: userDetails
-      }
+      data: userDetails
     });
   } catch (error) {
     console.error('Get user details error:', error);
@@ -66,4 +71,92 @@ export const getUserDetails = async (req: Request, res: Response) => {
       message: 'Kullanıcı detayları getirilirken bir hata oluştu.'
     });
   }
-}; 
+};
+
+export const toggleUserStatusController = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ 
+        error: 'Yetkilendirme başarısız',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız' 
+      });
+    }
+
+    const result = await userService.toggleUserStatus(userId, adminId);
+    
+    return res.status(200).json({
+      message: `Kullanıcı durumu ${result.status} olarak güncellendi`,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Toggle user status error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Kullanıcı durumu güncellenirken bir hata oluştu.'
+    });
+  }
+};
+
+export const deleteUserController = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ 
+        error: 'Yetkilendirme başarısız',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız' 
+      });
+    }
+
+    const result = await userService.deleteUser(userId, adminId);
+    
+    return res.status(200).json({
+      status: 'success',
+      message: result.message,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Kullanıcı silinirken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Kullanıcıya uyarı gönderir
+ * @param req Express request objesi
+ * @param res Express response objesi
+ */
+export const sendWarningToUserController = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { message } = req.body;
+    const adminId = req.user?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ error: 'Oturum açmanız gerekiyor' });
+    }
+
+    if (!message) {
+      return res.status(400).json({ error: 'Uyarı mesajı gereklidir' });
+    }
+
+    const result = await userService.sendWarningToUser(userId, adminId, message);
+
+    res.status(200).json({
+      message: 'Uyarı başarıyla gönderildi',
+      user: result
+    });
+  } catch (error) {
+    console.error('Uyarı gönderme controller hatası:', error);
+    res.status(500).json({ error: 'Uyarı gönderilirken bir hata oluştu' });
+  }
+} 
