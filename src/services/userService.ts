@@ -1,19 +1,55 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { User, CreateUserDTO, UserDetail } from '../models/User';
 import { format } from 'date-fns';
+import { sendWarningEmail } from './emailService';
+
+// Sport ve UserSport tipleri için interface tanımlamaları
+interface Sport {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface UserSport {
+  sport_id: string;
+  skill_level: string;
+  sport: Sport;
+}
 
 export const findUserById = async (id: string): Promise<User | null> => {
   try {
+    console.log('findUserById çağrıldı:', { id });
+    
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('findUserById hatası:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details
+      });
+      throw error;
+    }
+
+    if (!data) {
+      console.log('Kullanıcı bulunamadı:', { id });
+      return null;
+    }
+
+    console.log('Kullanıcı bulundu:', {
+      id: data.id,
+      email: data.email,
+      role: data.role
+    });
+
     return data as User;
   } catch (error) {
-    console.error('Error finding user by ID:', error);
+    console.error('findUserById beklenmeyen hata:', error);
     return null;
   }
 };
@@ -150,5 +186,455 @@ export const getUserDetails = async (): Promise<UserDetail[]> => {
   } catch (error) {
     console.error('Error in getUserDetails:', error);
     return [];
+  }
+};
+
+export const getUserDetailsById = async (id: string) => {
+  try {
+    console.log('Getting user details for ID:', id);
+
+    // Önce User_Sports tablosundaki raw veriyi kontrol edelim
+    console.log('Checking raw User_Sports data...');
+    const { data: rawSportsData, error: rawSportsError } = await supabaseAdmin
+      .from('User_Sports')
+      .select('*')
+      .eq('user_id', id);
+
+    console.log('Raw User_Sports query result:', {
+      error: rawSportsError ? {
+        code: rawSportsError.code,
+        message: rawSportsError.message,
+        details: rawSportsError.details
+      } : null,
+      data: rawSportsData,
+      sql: `SELECT * FROM "User_Sports" WHERE user_id = '${id}'`
+    });
+
+    // Sports tablosundaki tüm sporları kontrol edelim
+    console.log('Checking all available sports...');
+    const { data: allSports, error: allSportsError } = await supabaseAdmin
+      .from('Sports')
+      .select('*');
+
+    console.log('All sports in database:', {
+      error: allSportsError ? {
+        code: allSportsError.code,
+        message: allSportsError.message,
+        details: allSportsError.details
+      } : null,
+      count: allSports?.length || 0,
+      data: allSports
+    });
+
+    // Şimdi user_sports verilerini ilişkisel olarak çekelim
+    console.log('Fetching user sports data with relations...');
+    const { data: sportsData, error: sportsError } = await supabaseAdmin
+      .from('User_Sports')
+      .select(`
+        sport_id,
+        skill_level,
+        sport:Sports (
+          id,
+          name,
+          description
+        )
+      `)
+      .eq('user_id', id) as { data: UserSport[] | null; error: any };
+
+    if (sportsError) {
+      console.error('Sports query error:', sportsError);
+      console.error('Sports query error details:', {
+        code: sportsError.code,
+        message: sportsError.message,
+        details: sportsError.details,
+        hint: sportsError.hint,
+        query: `SELECT sport_id, skill_level, Sports.* FROM User_Sports JOIN Sports ON User_Sports.sport_id = Sports.id WHERE user_id = '${id}'`
+      });
+    } else {
+      console.log('Sports data fetched successfully:', {
+        count: sportsData?.length || 0,
+        data: JSON.stringify(sportsData, null, 2),
+        sportIds: sportsData?.map(s => s.sport_id)
+      });
+    }
+
+    // Kullanıcı verilerini çekmeden önce kullanıcının varlığını kontrol edelim
+    console.log('Checking if user exists...');
+    const { data: userCheck, error: userCheckError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    console.log('User existence check:', {
+      exists: !!userCheck,
+      error: userCheckError ? {
+        code: userCheckError.code,
+        message: userCheckError.message,
+        details: userCheckError.details
+      } : null
+    });
+
+    // Sonra kullanıcı ve etkinlik verilerini çekelim
+    console.log('Fetching user and event data...');
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select(`
+        *,
+        Event_Participants (
+          event:Events (
+            id,
+            title,
+            event_date,
+            status
+          )
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (userError) {
+      console.error('User query error:', userError);
+      console.error('User query error details:', {
+        code: userError.code,
+        message: userError.message,
+        details: userError.details,
+        hint: userError.hint,
+        query: `SELECT *, Event_Participants.* FROM users LEFT JOIN Event_Participants ON users.id = Event_Participants.user_id WHERE users.id = '${id}'`
+      });
+      throw userError;
+    }
+
+    if (!userData) {
+      console.error('No user data found for ID:', id);
+      return null;
+    }
+
+    console.log('User data fetched successfully:', {
+      id: userData.id,
+      email: userData.email,
+      eventParticipantsCount: userData.Event_Participants?.length || 0,
+      rawUserData: JSON.stringify(userData, null, 2)
+    });
+
+    // Tamamlanan etkinlik sayısını hesapla
+    const completedEvents = userData.Event_Participants?.filter(
+      (ep: any) => ep.event?.status === 'COMPLETED'
+    ).length || 0;
+
+    console.log('Completed events count:', completedEvents);
+
+    // Favori kategorileri dönüştür
+    const favoriteCategories = (sportsData || []).map(
+      (sportData: UserSport) => sportData.sport?.name
+    ).filter(Boolean);
+
+    console.log('Favorite categories processing:', {
+      rawSportsData: sportsData,
+      mappedNames: (sportsData || []).map(sport => sport.sport?.name),
+      filteredCategories: favoriteCategories
+    });
+
+    // Etkinlikleri dönüştür
+    const events = userData.Event_Participants?.map((ep: any) => ({
+      id: ep.event?.id,
+      title: ep.event?.title,
+      date: ep.event?.event_date,
+      status: ep.event?.status
+    })).filter((event: any) => event.id) || [];
+
+    console.log('Events processing:', {
+      rawEvents: userData.Event_Participants,
+      processedEvents: events
+    });
+
+    const response = {
+      id: userData.id,
+      username: userData.username || '',
+      name: `${userData.first_name} ${userData.last_name}`,
+      email: userData.email,
+      role: userData.role,
+      status: userData.status || 'active',
+      is_banned: userData.is_banned || false,
+      banned_at: userData.banned_at,
+      joinDate: format(new Date(userData.created_at), 'yyyy-MM-dd'),
+      avatar: userData.avatar || '',
+      profile_picture: userData.profile_picture || '',
+      registeredDate: format(new Date(userData.created_at), 'yyyy-MM-dd'),
+      lastActive: format(new Date(userData.updated_at), 'yyyy-MM-dd'),
+      gender: userData.gender || '',
+      age: userData.age || 0,
+      address: userData.address || '',
+      bio: userData.bio || '',
+      phone: userData.phone || '',
+      eventCount: events.length,
+      completedEvents,
+      favoriteCategories,
+      events
+    };
+
+    console.log('Final response:', response);
+    return response;
+
+  } catch (error) {
+    console.error('Error getting user details by ID:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw error;
+  }
+};
+
+export const toggleUserStatus = async (userId: string, adminId: string) => {
+  try {
+    // Admin kontrolü
+    const { data: admin, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', adminId)
+      .single();
+
+    if (adminError || admin?.role !== 'ADMIN') {
+      throw new Error('Bu işlem için admin yetkisine sahip olmalısınız');
+    }
+
+    // Kullanıcı kontrolü
+    const { data: userExists, error: userError } = await supabase
+      .from('users')
+      .select('is_banned')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userExists) {
+      throw new Error('Kullanıcı bulunamadı');
+    }
+
+    if (userExists.is_banned) {
+      throw new Error('Yasaklanmış kullanıcının durumu değiştirilemez');
+    }
+
+    // Önce mevcut durumu alalım
+    const { data: currentUser, error: currentUserError } = await supabase
+      .from('users')
+      .select('status')
+      .eq('id', userId)
+      .single();
+
+    if (currentUserError) {
+      throw currentUserError;
+    }
+
+    const newStatus = currentUser.status === 'active' ? 'inactive' : 'active';
+
+    // Status güncelleme
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select('id, email, status, updated_at')
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return updatedUser;
+
+  } catch (error) {
+    console.error('Error in toggleUserStatus:', error);
+    throw error;
+  }
+};
+
+export const deleteUser = async (userId: string, adminId: string) => {
+  try {
+    // Admin kontrolü
+    const { data: admin, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', adminId)
+      .single();
+
+    if (adminError || admin?.role !== 'ADMIN') {
+      throw new Error('Bu işlem için admin yetkisine sahip olmalısınız');
+    }
+
+    // Kullanıcı kontrolü
+    const { data: userExists, error: userError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userExists) {
+      throw new Error('Kullanıcı bulunamadı');
+    }
+
+    // Önce ilişkili kayıtları temizleyelim
+    // User_Sports kayıtlarını sil
+    await supabase
+      .from('User_Sports')
+      .delete()
+      .eq('user_id', userId);
+
+    // Event_Participants kayıtlarını sil
+    await supabase
+      .from('Event_Participants')
+      .delete()
+      .eq('user_id', userId);
+
+    // Kullanıcıyı sil
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    return {
+      success: true,
+      message: 'Kullanıcı ve ilişkili tüm kayıtları başarıyla silindi',
+      deletedUser: userExists
+    };
+
+  } catch (error) {
+    console.error('Error in deleteUser:', error);
+    throw error;
+  }
+};
+
+/**
+ * Kullanıcıya uyarı gönderir
+ * @param userId Uyarı gönderilecek kullanıcının ID'si
+ * @param adminId Uyarıyı gönderen admin kullanıcısının ID'si
+ * @param message Uyarı mesajı
+ * @returns Uyarı gönderilen kullanıcının güncel bilgileri
+ */
+export const sendWarningToUser = async (
+  userId: string,
+  adminId: string,
+  message: string
+) => {
+  try {
+    console.log('Uyarı gönderme işlemi başlatıldı:', {
+      userId,
+      adminId,
+      messageLength: message.length
+    });
+
+    // Kullanıcının varlığını kontrol et
+    console.log('Kullanıcı kontrolü yapılıyor...');
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('Kullanıcı sorgulama hatası:', {
+        error: userError,
+        code: userError.code,
+        details: userError.details,
+        hint: userError.hint,
+        message: userError.message
+      });
+      throw new Error('Kullanıcı bulunamadı');
+    }
+
+    if (!userData) {
+      console.error('Kullanıcı bulunamadı:', { userId });
+      throw new Error('Kullanıcı bulunamadı');
+    }
+
+    console.log('Kullanıcı bulundu:', {
+      id: userData.id,
+      email: userData.email,
+      role: userData.role
+    });
+
+    // Admin kontrolü
+    console.log('Admin kontrolü yapılıyor...');
+    const { data: adminData, error: adminError } = await supabaseAdmin
+      .from('users')
+      .select('role, first_name, last_name')
+      .eq('id', adminId)
+      .single();
+
+    if (adminError || !adminData || adminData.role !== 'ADMIN') {
+      console.error('Admin kontrolü hatası:', {
+        error: adminError,
+        adminData,
+        adminId
+      });
+      throw new Error('Bu işlem için admin yetkisine sahip olmalısınız');
+    }
+
+    console.log('Admin yetkisi doğrulandı');
+
+    // Uyarıyı User_Warnings tablosuna kaydet
+    console.log('Uyarı kaydediliyor...');
+    const { data: warningData, error: warningError } = await supabaseAdmin
+      .from('User_Warnings')
+      .insert({
+        user_id: userId,
+        admin_id: adminId,
+        message: message,
+        sent_at: new Date().toISOString(),
+        is_read: false
+      })
+      .select()
+      .single();
+
+    if (warningError) {
+      console.error('Uyarı kaydetme hatası:', {
+        error: warningError,
+        code: warningError.code,
+        details: warningError.details,
+        hint: warningError.hint,
+        message: warningError.message
+      });
+      throw new Error('Uyarı kaydedilirken bir hata oluştu');
+    }
+
+    console.log('Uyarı başarıyla kaydedildi:', {
+      warningId: warningData.id,
+      userId: warningData.user_id,
+      adminId: warningData.admin_id,
+      sentAt: warningData.sent_at
+    });
+
+    // E-posta gönderimi
+    try {
+      console.log('E-posta gönderimi başlatılıyor...');
+      await sendWarningEmail(
+        userData.email,
+        `${userData.first_name} ${userData.last_name}`,
+        message,
+        `${adminData.first_name} ${adminData.last_name}`
+      );
+      console.log('E-posta başarıyla gönderildi');
+    } catch (emailError) {
+      console.error('E-posta gönderimi hatası:', emailError);
+      // E-posta hatası uyarı kaydını engellemeyecek
+    }
+
+    return userData;
+  } catch (error) {
+    console.error('Uyarı gönderme işlemi hatası:', {
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      adminId
+    });
+    throw error;
   }
 }; 

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import supabase from '../config/supabase';
 import * as userService from '../services/userService';
+import { User } from '../models/User';
 import logger from '../utils/logger';
 
 // Extend Express Request type to include user property
@@ -8,11 +9,21 @@ declare global {
   namespace Express {
     interface Request {
       user?: any;
-      userProfile?: any;
+      userProfile?: User;
       userId?: string;
     }
   }
 }
+
+type DefaultUser = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'ADMIN' | 'STAFF' | 'USER';
+  created_at: string;
+  updated_at: string;
+};
 
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -26,6 +37,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     }
 
     if (!token) {
+      logger.error('Token bulunamadı');
       return res.status(401).json({
         status: 'error',
         message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
@@ -33,37 +45,64 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     }
 
     // 2) Verify token
+    logger.info('Token doğrulanıyor...');
     const { data, error } = await supabase.auth.getUser(token);
 
-    if (error || !data.user) {
+    if (error) {
+      logger.error('Token doğrulama hatası:', error);
       return res.status(401).json({
         status: 'error',
         message: 'Geçersiz token. Lütfen tekrar giriş yapın.'
       });
     }
 
-    // GEÇİCİ ÇÖZÜM: Kullanıcı profilini kontrol etmeyi atlıyoruz
-    // Supabase Auth'daki kullanıcı bilgilerini direkt olarak kullanacağız
+    if (!data.user) {
+      logger.error('Token geçerli ama kullanıcı bulunamadı');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Geçersiz token. Lütfen tekrar giriş yapın.'
+      });
+    }
+
     logger.info(`Token doğrulandı, kullanıcı ID: ${data.user.id}`);
     
     // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz
-    // ama bulunamazsa bile devam ediyoruz
+    logger.info('Kullanıcı profili aranıyor...');
     const userProfile = await userService.findUserById(data.user.id);
     
+    if (!userProfile) {
+      logger.warn('Kullanıcı profili bulunamadı, varsayılan profil kullanılacak');
+    } else {
+      logger.info('Kullanıcı profili bulundu:', {
+        id: userProfile.id,
+        email: userProfile.email,
+        role: userProfile.role
+      });
+    }
+
     // 4) Grant access to protected route
     req.user = data.user;
     req.userId = data.user.id;
-    req.userProfile = userProfile || {
+    const defaultUser: DefaultUser = {
       id: data.user.id,
-      email: data.user.email,
+      email: data.user.email || '',
       first_name: data.user.user_metadata?.first_name || 'Test',
       last_name: data.user.user_metadata?.last_name || 'User',
-      role: 'USER'
+      role: (userProfile?.role || 'USER') as 'ADMIN' | 'STAFF' | 'USER',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
+    req.userProfile = userProfile || defaultUser;
+    
+    logger.info('Kullanıcı yetkilendirildi:', {
+      id: req.userProfile.id,
+      email: req.userProfile.email,
+      role: req.userProfile.role
+    });
     
     next();
   } catch (error) {
-    logger.error('Auth middleware error:', error);
+    logger.error('Auth middleware hatası:', error);
     return res.status(401).json({
       status: 'error',
       message: 'Kimlik doğrulama başarısız oldu.'
@@ -109,13 +148,16 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     // Kullanıcı bilgilerini request'e ekle
     req.user = data.user;
     req.userId = data.user.id;
-    req.userProfile = userProfile || {
+    const defaultUser: DefaultUser = {
       id: data.user.id,
-      email: data.user.email,
+      email: data.user.email || '',
       first_name: data.user.user_metadata?.first_name || 'Test',
       last_name: data.user.user_metadata?.last_name || 'User',
-      role: 'USER'
+      role: 'USER',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
+    req.userProfile = userProfile || defaultUser;
     
     logger.info(`Kullanıcı doğrulandı, ID: ${data.user.id}`);
     next();
@@ -127,38 +169,36 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 };
 
 // Middleware to restrict access to certain roles
-export const restrictTo = (...roles: string[]) => {
+export const restrictTo = (...roles: ('ADMIN' | 'STAFF' | 'USER')[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Check if user has required role
     if (!req.userProfile || !roles.includes(req.userProfile.role)) {
+      logger.warn(`Yetkisiz erişim denemesi. Kullanıcı rolü: ${req.userProfile?.role}, Gereken roller: ${roles.join(', ')}`);
       return res.status(403).json({
         status: 'error',
         message: 'Bu işlemi gerçekleştirmek için yetkiniz yok.'
       });
     }
-
     next();
   };
 };
 
 // Admin yetkisi kontrolü yapan middleware
 export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
-  // Önce kullanıcının giriş yapmış olduğunu kontrol et
   if (!req.userProfile) {
+    logger.warn('Yetkisiz erişim denemesi: Kullanıcı giriş yapmamış');
     return res.status(401).json({
-      success: false,
-      message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      status: 'error',
+      message: 'Lütfen giriş yapın.'
     });
   }
-  
-  // Kullanıcının admin rolüne sahip olup olmadığını kontrol et
+
   if (req.userProfile.role !== 'ADMIN') {
+    logger.warn(`Yetkisiz admin erişimi denemesi. Kullanıcı rolü: ${req.userProfile.role}`);
     return res.status(403).json({
-      success: false,
-      message: 'Bu işlemi gerçekleştirmek için admin yetkisine sahip olmalısınız.'
+      status: 'error',
+      message: 'Bu işlemi gerçekleştirmek için admin yetkisi gerekiyor.'
     });
   }
-  
-  // Eğer admin yetkisine sahipse, bir sonraki middleware'e veya route handler'a geç
+
   next();
-}; 
+};
