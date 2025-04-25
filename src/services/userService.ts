@@ -2,6 +2,8 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import { User, CreateUserDTO, UserDetail } from '../models/User';
 import { format } from 'date-fns';
 import { sendWarningEmail } from './emailService';
+import { NotFoundError, BadRequestError } from '../errors/customErrors';
+import logger from '../utils/logger';
 
 // Sport ve UserSport tipleri için interface tanımlamaları
 interface Sport {
@@ -637,4 +639,116 @@ export const sendWarningToUser = async (
     });
     throw error;
   }
+};
+
+interface UserProfileData {
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+}
+
+export const getUserProfileById = async (userId: string): Promise<UserProfileData> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('first_name, last_name, email, phone, profile_picture')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    logger.error(`User profile not found for ID: ${userId}`, error);
+    throw new NotFoundError('User profile not found');
+  }
+
+  return {
+    name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
+    email: data.email,
+    phone: data.phone,
+    avatar: data.profile_picture,
+  };
+};
+
+interface UpdateUserProfileDTO {
+  first_name?: string;
+  last_name?: string;
+  email?: string; // Email update needs careful consideration due to auth link
+  phone?: string;
+}
+
+export const updateUserProfileById = async (userId: string, updateData: UpdateUserProfileDTO): Promise<void> => {
+  // Remove undefined fields to avoid overwriting with null
+  const validUpdateData = Object.fromEntries(
+    Object.entries(updateData).filter(([_, v]) => v !== undefined)
+  );
+
+  if (Object.keys(validUpdateData).length === 0) {
+    throw new BadRequestError('No valid fields provided for update.');
+  }
+
+  // Add updated_at timestamp
+  validUpdateData.updated_at = new Date().toISOString();
+
+  // Use supabaseAdmin for potentially restricted updates if needed
+  // Or ensure RLS policy allows users to update their own profile
+  const { error } = await supabase
+    .from('users')
+    .update(validUpdateData)
+    .eq('id', userId);
+
+  if (error) {
+    logger.error(`Error updating user profile for ID: ${userId}`, error);
+    throw new Error('Failed to update user profile');
+  }
+  logger.info(`User profile updated successfully for ID: ${userId}`);
+};
+
+export const updateUserAvatar = async (userId: string, file: Express.Multer.File): Promise<string> => {
+  if (!file) {
+    throw new BadRequestError('Avatar file is required.');
+  }
+
+  const fileExt = file.originalname.split('.').pop();
+  const fileName = `${userId}-${Date.now()}.${fileExt}`;
+  const filePath = `users/avatars/${fileName}`;
+
+  // Upload to Supabase Storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('sportlink-files') // Using the correct bucket name
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true, // Overwrite if file exists (optional)
+    });
+
+  if (uploadError) {
+    logger.error(`Error uploading avatar to storage for user ${userId}:`, uploadError);
+    throw new Error('Failed to upload avatar to storage.');
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('sportlink-files')
+    .getPublicUrl(filePath);
+
+  if (!urlData?.publicUrl) {
+     logger.error(`Failed to get public URL for avatar: ${filePath}`);
+     // Even if URL fails, upload might be successful, proceed with caution or throw
+     throw new Error('Failed to get avatar public URL.');
+  }
+
+  const avatarUrl = urlData.publicUrl;
+
+  // Update profile_picture in users table
+  const { error: dbError } = await supabase
+    .from('users')
+    .update({ profile_picture: avatarUrl, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (dbError) {
+    logger.error(`Error updating avatar URL in DB for user ${userId}:`, dbError);
+    // Consider deleting the uploaded file from storage if DB update fails
+    throw new Error('Failed to update avatar URL in profile.');
+  }
+
+  logger.info(`Avatar updated successfully for user ${userId}. URL: ${avatarUrl}`);
+  return avatarUrl;
 }; 
