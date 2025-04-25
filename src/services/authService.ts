@@ -1,6 +1,8 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { LoginDTO } from '../models/User';
 import { SecurityService } from './securityService';
+import { UnauthorizedError } from '../errors/customErrors';
+import logger from '../utils/logger';
 
 export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => {
   try {
@@ -250,6 +252,50 @@ export const handleOAuthCallback = async (code: string) => {
     return data;
   } catch (error) {
     console.error('OAuth callback handling error:', error);
+    throw error;
+  }
+};
+
+/**
+ * YAPILAN DEĞİŞİKLİKLER - 25 Nisan 2024
+ * ---------------------------------------
+ * 1. Şifre değiştirme fonksiyonu güncellendi
+ *    - Eski yaklaşım: Email ile tekrar giriş yapma kontrolü
+ *    - Yeni yaklaşım: Mevcut oturum üzerinden doğrulama
+ * 
+ * 2. Güvenlik iyileştirmeleri
+ *    - Şifre doğrulama kontrolü ProfileController'a taşındı
+ *    - Oturum kontrolü eklendi
+ *    - Hata yönetimi geliştirildi
+ * 
+ * 3. Performans iyileştirmeleri
+ *    - Gereksiz veritabanı sorguları kaldırıldı
+ *    - Daha az API çağrısı yapılıyor
+ */
+
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<void> => {
+  try {
+    // Get the current session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session) {
+      logger.error('Error getting current session:', sessionError);
+      throw new UnauthorizedError('No active session found');
+    }
+
+    // Update password directly
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (updateError) {
+      logger.error('Error updating password:', updateError);
+      throw new Error('Failed to update password');
+    }
+
+    logger.info('Password successfully updated for user:', userId);
+  } catch (error) {
+    logger.error('Error in changePassword:', error);
     throw error;
   }
 }; 

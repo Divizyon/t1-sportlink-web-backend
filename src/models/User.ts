@@ -152,4 +152,9 @@ export interface CreateUserDTO {
 export interface LoginDTO {
   email: string;
   password: string;
+}
+
+export interface ChangePasswordDTO {
+  currentPassword: string;
+  newPassword: string;
 } 
