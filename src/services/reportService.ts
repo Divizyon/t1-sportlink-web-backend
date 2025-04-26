@@ -1,8 +1,40 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
-import { DatabaseReport, Report, ReportData } from '../models/Report';
+import { DatabaseReport, Report, ReportData, AdminReportInfo } from '../models/Report';
 import { format, parseISO, Locale } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import logger from '../utils/logger';
+
+// Rapor detayları için tip tanımlamaları
+interface ReportDetailsResponse {
+  id: number;
+  report_reason: string;
+  report_date: string;
+  status: string;
+  admin_notes: string;
+  reporter: ReporterInfo | null;
+  reported_user: ReportedUserInfo | null;
+  event: ReportEventInfo | null;
+  updated_by: string | null;
+}
+
+interface ReporterInfo {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+}
+
+interface ReportedUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+}
+
+interface ReportEventInfo {
+  id: string;
+  title: string;
+}
 
 /**
  * Tarih formatını işleyen yardımcı fonksiyon
@@ -89,6 +121,9 @@ const mapDatabaseReportToFrontend = (databaseReport: any): Report => {
   // Rapor türünü belirle ve detayları ekle
   const tur = databaseReport.reported_id !== databaseReport.reporter_id ? "Kullanıcı" : "Etkinlik";
   const konu = databaseReport.report_reason;
+  
+  // Admin notlarını ekle
+  const adminNotes = databaseReport.admin_notes || "";
 
   // Frontend'in beklediği formatta rapor nesnesi oluştur
   return {
@@ -99,7 +134,8 @@ const mapDatabaseReportToFrontend = (databaseReport: any): Report => {
     tarih,
     tur,
     oncelik,
-    durum
+    durum,
+    adminNotes
   };
 };
 
@@ -240,20 +276,23 @@ export const getReportData = async (): Promise<ReportData[]> => {
  * Rapor durumunu günceller
  * @param reportId Raporun ID'si
  * @param status Yeni durum değeri (resolved veya rejected)
+ * @param adminId İşlemi yapan adminin ID'si
  * @returns Güncellenmiş rapor
  */
 export const updateReportStatus = async (
   reportId: number,
-  status: 'resolved' | 'rejected'
+  status: 'resolved' | 'rejected',
+  adminId: string
 ): Promise<Report> => {
   try {
-    console.log(`Rapor durumu güncelleniyor: ${reportId} -> ${status}`);
+    console.log(`Rapor durumu güncelleniyor: ${reportId} -> ${status}, Admin ID: ${adminId}`);
     
-    // Veritabanında durumu güncelle - updated_at alanını çıkardık
+    // Veritabanında durumu ve güncelleyen admin bilgisini güncelle
     const { data, error } = await supabaseAdmin
       .from('Reports')
       .update({ 
-        status
+        status,
+        updated_by: adminId
       })
       .eq('id', reportId)
       .select(`
@@ -265,6 +304,7 @@ export const updateReportStatus = async (
         admin_notes,
         reporter_id,
         reported_id,
+        updated_by,
         reporter:users!reporter_id (first_name, last_name),
         reported:users!reported_id (first_name, last_name),
         event:Events!event_id (title)
@@ -294,20 +334,23 @@ export const updateReportStatus = async (
  * Rapora admin notu ekler veya mevcut notu günceller
  * @param reportId Raporun ID'si
  * @param adminNotes Admin notu içeriği
+ * @param adminId İşlemi yapan adminin ID'si
  * @returns Güncellenmiş rapor
  */
 export const updateAdminNotes = async (
   reportId: number,
-  adminNotes: string
+  adminNotes: string,
+  adminId: string
 ): Promise<Report> => {
   try {
-    console.log(`Rapor admin notu güncelleniyor: ${reportId}`);
+    console.log(`Rapor admin notu güncelleniyor: ${reportId}, Admin ID: ${adminId}`);
     
-    // Veritabanında admin notunu güncelle - updated_at alanını çıkardık
+    // Veritabanında admin notunu güncelle ve updated_by alanına admin ID'sini ekle
     const { data, error } = await supabaseAdmin
       .from('Reports')
       .update({ 
-        admin_notes: adminNotes
+        admin_notes: adminNotes,
+        updated_by: adminId
       })
       .eq('id', reportId)
       .select(`
@@ -319,6 +362,7 @@ export const updateAdminNotes = async (
         admin_notes,
         reporter_id,
         reported_id,
+        updated_by,
         reporter:users!reporter_id (first_name, last_name),
         reported:users!reported_id (first_name, last_name),
         event:Events!event_id (title)
@@ -347,13 +391,15 @@ export const updateAdminNotes = async (
 /**
  * Raporlanan kullanıcının durumunu inactive yapar
  * @param reportId Raporun ID'si
+ * @param adminId İşlemi yapan adminin ID'si
  * @returns İşlem sonucu
  */
 export const banUserFromReport = async (
-  reportId: number
+  reportId: number,
+  adminId: string
 ): Promise<{ success: boolean; message: string; user_id: string }> => {
   try {
-    logger.info(`Raporlanan kullanıcının durumu güncelleniyor, rapor ID: ${reportId}`);
+    logger.info(`Raporlanan kullanıcının durumu güncelleniyor, rapor ID: ${reportId}, Admin ID: ${adminId}`);
     
     // Önce raporu ve raporlanan kullanıcıyı bul
     const { data: reportData, error: reportError } = await supabaseAdmin
@@ -414,11 +460,12 @@ export const banUserFromReport = async (
     
     logger.info(`Kullanıcı durumu inactive olarak güncellendi: ${userId}`);
     
-    // Admin notunu güncelle ama rapor durumunu değiştirme
+    // Admin notunu ve güncelleyen adminini güncelle ama rapor durumunu değiştirme
     const { error: reportUpdateError } = await supabaseAdmin
       .from('Reports')
       .update({ 
-        admin_notes: `Kullanıcı ${new Date().toLocaleString('tr-TR')} tarihinde devre dışı bırakıldı.`
+        admin_notes: `Kullanıcı ${new Date().toLocaleString('tr-TR')} tarihinde devre dışı bırakıldı.`,
+        updated_by: adminId
       })
       .eq('id', reportId);
     
@@ -461,5 +508,183 @@ const getUserTableFields = async (): Promise<string[]> => {
   } catch (error) {
     console.error('Kullanıcı tablosu alanları kontrol edilirken hata oluştu:', error);
     return []; // Hata durumunda boş dizi döndür
+  }
+};
+
+/**
+ * Belirli bir raporun admin bilgilerini getirir
+ * @param reportId Rapor ID
+ * @returns Rapor admin bilgileri
+ */
+export const getReportAdminDetails = async (reportId: string): Promise<AdminReportInfo> => {
+  try {
+    console.log(`Rapor admin bilgileri getiriliyor, id: ${reportId}`);
+    
+    const { data, error } = await supabaseAdmin
+      .from('Reports')
+      .select(`
+        id, 
+        status,
+        admin_notes,
+        updated_by,
+        admin:users!updated_by (email, username)
+      `)
+      .eq('id', reportId)
+      .single();
+      
+    if (error) {
+      console.error('Rapor admin bilgileri getirilirken hata:', error);
+      throw error;
+    }
+    
+    if (!data) {
+      console.error(`Rapor bulunamadı: ${reportId}`);
+      throw new Error('Rapor bulunamadı');
+    }
+    
+    // Durumu Türkçe'ye çevir
+    let durum = "Beklemede";
+    switch (data.status?.toLowerCase() || 'pending') {
+      case 'pending':
+        durum = "Beklemede";
+        break;
+      case 'reviewing':
+        durum = "İnceleniyor";
+        break;
+      case 'resolved':
+        durum = "Çözüldü";
+        break;
+      case 'rejected':
+        durum = "Reddedildi";
+        break;
+    }
+    
+    // TypeScript'in admin yapısını anlayabilmesi için tip dönüşümü
+    const admin = data.admin as { email?: string; username?: string } || {};
+    
+    const result: AdminReportInfo = {
+      rapor_id: data.id?.toString() || "",
+      admin_email: admin?.email || "",
+      admin_username: admin?.username || "",
+      admin_notu: data.admin_notes || "",
+      durum
+    };
+    
+    console.log('Rapor admin bilgileri başarıyla getirildi:', reportId);
+    return result;
+  } catch (error) {
+    console.error('Rapor admin bilgileri servis hatası:', error);
+    throw error;
+  }
+};
+
+/**
+ * Belirli bir raporun detaylarını getirir
+ * @param reportId Rapor ID
+ * @returns Rapor detayları
+ */
+export const getReportDetails = async (reportId: number): Promise<ReportDetailsResponse> => {
+  try {
+    // Raporu veritabanından al
+    const { data: report, error } = await supabaseAdmin
+      .from('Reports')
+      .select(`
+        id,
+        event_id,
+        report_reason,
+        report_date,
+        status,
+        admin_notes,
+        reporter_id,
+        reported_id,
+        updated_by,
+        reporter:users!reporter_id (id, first_name, last_name, username, email),
+        reported:users!reported_id (id, first_name, last_name, username, email),
+        event:Events!event_id (id, title),
+        admin:users!updated_by (id, first_name, last_name, username, email)
+      `)
+      .eq('id', reportId)
+      .single();
+
+    if (error) {
+      console.error(`Rapor detayları getirilirken hata (ID: ${reportId}):`, error);
+      throw error;
+    }
+
+    if (!report) {
+      throw new Error('Rapor bulunamadı');
+    }
+
+    // TypeScript için tip güvenlikli işlemler yapalım
+    type UserInfo = {
+      id?: string;
+      first_name?: string;
+      last_name?: string;
+      username?: string;
+      email?: string;
+    };
+
+    type EventInfo = {
+      id?: string;
+      title?: string;
+    };
+
+    // Reporter bilgilerini formatla
+    let reporterInfo: ReporterInfo | null = null;
+    if (report.reporter && typeof report.reporter === 'object') {
+      const reporter = report.reporter as UserInfo;
+      reporterInfo = {
+        id: reporter.id || '',
+        username: reporter.username || '',
+        email: reporter.email || '',
+        full_name: `${reporter.first_name || ''} ${reporter.last_name || ''}`.trim()
+      };
+    }
+
+    // Reported user bilgilerini formatla
+    let reportedUserInfo: ReportedUserInfo | null = null;
+    if (report.reported && typeof report.reported === 'object') {
+      const reported = report.reported as UserInfo;
+      reportedUserInfo = {
+        id: reported.id || '',
+        username: reported.username || '',
+        email: reported.email || '',
+        full_name: `${reported.first_name || ''} ${reported.last_name || ''}`.trim()
+      };
+    }
+
+    // Event bilgilerini formatla
+    let eventInfo: ReportEventInfo | null = null;
+    if (report.event && typeof report.event === 'object') {
+      // Sanırım supabase dönüşü array olabilir, buna göre kontrol edelim
+      const event = Array.isArray(report.event) 
+        ? (report.event.length > 0 ? report.event[0] : null) 
+        : report.event;
+      
+      if (event && typeof event === 'object' && 'id' in event) {
+        eventInfo = {
+          id: String(event.id) || '',
+          title: String(event.title) || ''
+        };
+      }
+    }
+
+    // Rapor nesnesini hazırla
+    const reportDetails: ReportDetailsResponse = {
+      id: report.id,
+      report_reason: report.report_reason || '',
+      report_date: report.report_date || '',
+      status: report.status || '',
+      admin_notes: report.admin_notes || '',
+      reporter: reporterInfo,
+      reported_user: reportedUserInfo,
+      event: eventInfo,
+      updated_by: report.updated_by || null
+    };
+
+    return reportDetails;
+  } catch (error) {
+    console.error('Rapor detayları servis hatası:', error);
+    throw error;
   }
 }; 

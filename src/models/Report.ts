@@ -37,6 +37,9 @@
  *           type: string
  *           enum: [Beklemede, İnceleniyor, Çözüldü, Reddedildi]
  *           description: Raporun mevcut durumu
+ *         adminNotes:
+ *           type: string
+ *           description: Admin tarafından eklenen notlar
  *     ReportData:
  *       type: object
  *       required:
@@ -93,6 +96,7 @@ export interface Report {
   tur: "Kullanıcı" | "Etkinlik"; // Raporun türü
   oncelik: "Yüksek" | "Orta" | "Düşük"; // Raporun önceliği
   durum: "Beklemede" | "İnceleniyor" | "Çözüldü" | "Reddedildi"; // Raporun mevcut durumu
+  adminNotes?: string; // Admin notları (opsiyonel)
 }
 
 // Backend'den alınan verilerin formatı
@@ -130,4 +134,13 @@ export interface DatabaseReport {
   event: {
     title?: string;
   };
+}
+
+// Admin rapor bilgileri için ortak tip
+export interface AdminReportInfo {
+  rapor_id: string;
+  admin_email: string;
+  admin_username: string;
+  admin_notu: string;
+  durum: string;
 } 
