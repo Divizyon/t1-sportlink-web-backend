@@ -96,17 +96,27 @@ export const loginWithGoogle = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+        redirectTo: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/api/auth/callback',
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        },
+        scopes: 'email profile'
+      }
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Google OAuth başlatma hatası:', error);
+      throw error;
+    }
+
+    if (!data.url) {
+      throw new Error('Google OAuth URL alınamadı');
+    }
     
-    // Google ile giriş başarılıysa ve kullanıcı bilgileri alındıysa
-    // Gerçek kullanıcı verilerine, callback işlenmesi sırasında erişilecek
-    // Bu nedenle burada sadece authentication işlemi başlatılıyor
-    
-    return data;
+    return {
+      url: data.url
+    };
   } catch (error) {
     console.error('Google login error:', error);
     throw error;
@@ -200,58 +210,55 @@ export const sendVerificationEmail = async (email: string) => {
 // Google OAuth ile giriş yaptıktan sonra kullanıcıyı veritabanına kaydetmek için
 export const handleOAuthCallback = async (code: string) => {
   try {
-    // OAuth kodu ile oturum bilgilerini elde et
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    
+
     if (error) {
-      console.error('OAuth callback error:', error);
+      console.error('OAuth callback hatası:', error);
       throw error;
     }
-    
-    // Kullanıcı verilerini al
-    if (data.user) {
-      // Kullanıcının veritabanında olup olmadığını kontrol et
-      const { data: existingUser, error: userCheckError } = await supabase
+
+    if (!data.user) {
+      throw new Error('Kullanıcı bilgileri alınamadı');
+    }
+
+    // Kullanıcının users tablosunda olup olmadığını kontrol et
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userCheckError && userCheckError.code !== 'PGRST116') {
+      console.error('Kullanıcı kontrolü hatası:', userCheckError);
+    }
+
+    // Kullanıcı users tablosunda yoksa ekle
+    if (!existingUser) {
+      const { error: insertError } = await supabaseAdmin
         .from('users')
-        .select('id')
-        .eq('id', data.user.id)
-        .single();
-      
-      if (userCheckError && userCheckError.code !== 'PGRST116') {
-        console.error('User check error:', userCheckError);
-      }
-      
-      // Kullanıcı veritabanında yoksa ekle
-      if (!existingUser) {
-        // RLS hatasını önlemek için supabaseAdmin kullan
-        const { error: insertError } = await supabaseAdmin
-          .from('users')
-          .insert({
-            id: data.user.id,
-            username: data.user.email?.split('@')[0] || '',
-            email: data.user.email || '',
-            first_name: data.user.user_metadata?.full_name?.split(' ')[0] || '',
-            last_name: data.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-            phone: data.user.phone || '',
-            profile_picture: data.user.user_metadata?.avatar_url || '',
-            default_location_latitude: 0,
-            default_location_longitude: 0,
-            role: 'USER',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        
-        if (insertError) {
-          console.error('Error inserting user data from OAuth to users table:', insertError);
-        } else {
-          console.log('User data from OAuth successfully inserted to users table');
-        }
+        .insert({
+          id: data.user.id,
+          username: data.user.email?.split('@')[0] || '',
+          email: data.user.email || '',
+          first_name: data.user.user_metadata?.given_name || '',
+          last_name: data.user.user_metadata?.family_name || '',
+          profile_picture: data.user.user_metadata?.picture || '',
+          role: 'USER',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('Users tablosuna veri ekleme hatası:', insertError);
       }
     }
-    
-    return data;
+
+    return {
+      session: data.session,
+      user: data.user
+    };
   } catch (error) {
-    console.error('OAuth callback handling error:', error);
+    console.error('OAuth callback işleme hatası:', error);
     throw error;
   }
 };

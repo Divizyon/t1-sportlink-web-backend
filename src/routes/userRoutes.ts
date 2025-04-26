@@ -5,7 +5,8 @@ import {
   getUserDetails,
   toggleUserStatusController,
   deleteUserController,
-  sendWarningToUserController
+  sendWarningToUserController,
+  toggleUserWatch
 } from '../controllers/UserController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -112,9 +113,9 @@ router.get('/', restrictTo('ADMIN'), getAllUsers);
  *                       type: string
  *                     status:
  *                       type: string
- *                     is_banned:
+ *                     is_watched:
  *                       type: boolean
- *                     banned_at:
+ *                     watched_since:
  *                       type: string
  *                       nullable: true
  *                     joinDate:
@@ -471,5 +472,79 @@ router.delete('/:userId', protect, restrictTo('ADMIN'), deleteUserController);
  *                   example: "Bir hata oluştu. Lütfen daha sonra tekrar deneyin."
  */
 router.post('/:userId/warning', protect, restrictTo('ADMIN'), sendWarningToUserController);
+
+/**
+ * @swagger
+ * /api/users/{userId}/watch:
+ *   put:
+ *     summary: İzleme durumunu değiştir
+ *     description: Bir kullanıcıyı izlemeye alma veya izlemeden çıkarma. Sadece adminler kullanabilir.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: İzlenecek/izlemeden çıkarılacak kullanıcının ID'si
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - watch
+ *             properties:
+ *               watch:
+ *                 type: boolean
+ *                 description: true = izlemeye al, false = izlemeden çıkar
+ *           example:
+ *             watch: true
+ *     responses:
+ *       200:
+ *         description: İşlem başarılı
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Kullanıcı başarıyla izlemeye alındı
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     isWatched:
+ *                       type: boolean
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedBy:
+ *                       type: string
+ *                       format: uuid
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.put('/:userId/watch', restrictTo('ADMIN'), toggleUserWatch);
 
 export default router;

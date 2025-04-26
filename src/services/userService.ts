@@ -407,16 +407,12 @@ export const toggleUserStatus = async (userId: string, adminId: string) => {
     // Kullanıcı kontrolü
     const { data: userExists, error: userError } = await supabase
       .from('users')
-      .select('is_banned')
+      .select('status')
       .eq('id', userId)
       .single();
 
     if (userError || !userExists) {
       throw new Error('Kullanıcı bulunamadı');
-    }
-
-    if (userExists.is_banned) {
-      throw new Error('Yasaklanmış kullanıcının durumu değiştirilemez');
     }
 
     // Önce mevcut durumu alalım
