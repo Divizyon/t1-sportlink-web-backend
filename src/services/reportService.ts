@@ -2,6 +2,7 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import { DatabaseReport, Report, ReportData } from '../models/Report';
 import { format, parseISO, Locale } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import logger from '../utils/logger';
 
 /**
  * Tarih formatını işleyen yardımcı fonksiyon
@@ -74,20 +75,27 @@ const mapDatabaseReportToFrontend = (databaseReport: any): Report => {
   const tarih = formatDate(databaseReport.report_date, 'dd.MM.yyyy', tr);
 
   // Raporu gönderen kişinin tam adını oluştur
-  // Supabase'den dönen verinin formatına göre ayarlama yapıyoruz
   const reporter = databaseReport.reporter || {};
-  const firstName = reporter.first_name || '';
-  const lastName = reporter.last_name || '';
-  const raporlayan = `${firstName} ${lastName}`.trim();
+  const reporterFirstName = reporter.first_name || '';
+  const reporterLastName = reporter.last_name || '';
+  const raporlayan = `${reporterFirstName} ${reporterLastName}`.trim();
 
-  // Rapor türünü belirle
+  // Raporlanan kişinin tam adını oluştur
+  const reported = databaseReport.reported || {};
+  const reportedFirstName = reported.first_name || '';
+  const reportedLastName = reported.last_name || '';
+  const raporlanan = `${reportedFirstName} ${reportedLastName}`.trim();
+
+  // Rapor türünü belirle ve detayları ekle
   const tur = databaseReport.reported_id !== databaseReport.reporter_id ? "Kullanıcı" : "Etkinlik";
+  const konu = databaseReport.report_reason;
 
-  // Frontend'in beklediği formatta rapo nesnesi oluştur
+  // Frontend'in beklediği formatta rapor nesnesi oluştur
   return {
     id: databaseReport.id.toString(),
-    konu: databaseReport.report_reason,
+    konu,
     raporlayan,
+    raporlanan: tur === "Kullanıcı" ? raporlanan : "",
     tarih,
     tur,
     oncelik,
@@ -337,7 +345,7 @@ export const updateAdminNotes = async (
 };
 
 /**
- * Raporlanan kullanıcıyı banlar
+ * Raporlanan kullanıcının durumunu inactive yapar
  * @param reportId Raporun ID'si
  * @returns İşlem sonucu
  */
@@ -345,69 +353,87 @@ export const banUserFromReport = async (
   reportId: number
 ): Promise<{ success: boolean; message: string; user_id: string }> => {
   try {
-    console.log(`Raporlanan kullanıcı banlanıyor, rapor ID: ${reportId}`);
+    logger.info(`Raporlanan kullanıcının durumu güncelleniyor, rapor ID: ${reportId}`);
     
     // Önce raporu ve raporlanan kullanıcıyı bul
     const { data: reportData, error: reportError } = await supabaseAdmin
       .from('Reports')
-      .select('id, reported_id')
+      .select(`
+        id,
+        reported_id,
+        status,
+        reported:users!reported_id (
+          first_name,
+          last_name,
+          email
+        )
+      `)
       .eq('id', reportId)
-      .single();
+      .single() as { 
+        data: DatabaseReport | null; 
+        error: any; 
+      };
       
     if (reportError || !reportData) {
-      console.error('Rapor bulunamadı:', reportError);
+      logger.error('Rapor bulunamadı:', reportError);
       throw new Error('İlgili rapor bulunamadı.');
+    }
+
+    // Rapor zaten çözüldü mü kontrol et
+    if (reportData.status === 'resolved') {
+      throw new Error('Bu rapor zaten çözüldü.');
     }
     
     // Raporlanan kullanıcının ID'sini al
     const userId = reportData.reported_id;
+    const reportedUser = reportData.reported;
     
-    if (!userId) {
+    if (!userId || !reportedUser) {
       throw new Error('Raporda raporlanan kullanıcı bilgisi bulunamadı.');
     }
     
-    console.log(`Rapordan alınan kullanıcı ID'si: ${userId}`);
+    logger.info(`Raporlanan kullanıcı bilgileri:`, {
+      id: userId,
+      name: `${reportedUser.first_name} ${reportedUser.last_name}`,
+      email: reportedUser.email
+    });
     
-    // Kullanıcıyı banla - veritabanında is_banned ve banned_at sütunları mevcut
-    try {
-      const { error: banError } = await supabaseAdmin
-        .from('users')
-        .update({ 
-          is_banned: true,
-          banned_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-      
-      if (banError) {
-        console.error('Kullanıcı banlanırken hata oluştu:', banError);
-        throw new Error(`Kullanıcı banlanırken hata oluştu: ${banError.message}`);
-      }
-      
-      console.log(`Kullanıcı başarıyla banlandı: ${userId}`);
-    } catch (banError) {
-      console.error('Kullanıcı banlama hatası:', banError);
-      // Banlama başarısız olsa bile raporu çözüldü olarak işaretlemeye devam et
-      console.warn('Kullanıcı banlanamadı ancak rapor işlenecek.');
+    // Kullanıcının durumunu inactive yap
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({ 
+        status: 'inactive',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+    
+    if (updateError) {
+      logger.error('Kullanıcı durumu güncellenirken hata oluştu:', updateError);
+      throw new Error(`Kullanıcı durumu güncellenirken hata oluştu: ${updateError.message}`);
     }
     
-    // Raporu çözüldü olarak işaretle
+    logger.info(`Kullanıcı durumu inactive olarak güncellendi: ${userId}`);
+    
+    // Admin notunu güncelle ama rapor durumunu değiştirme
     const { error: reportUpdateError } = await supabaseAdmin
       .from('Reports')
-      .update({ status: 'resolved' })
+      .update({ 
+        admin_notes: `Kullanıcı ${new Date().toLocaleString('tr-TR')} tarihinde devre dışı bırakıldı.`
+      })
       .eq('id', reportId);
     
     if (reportUpdateError) {
-      console.error('Rapor durumu güncellenirken hata oluştu:', reportUpdateError);
-      console.warn('Kullanıcı banlandı ancak rapor durumu güncellenemedi.');
+      logger.error('Rapor admin notu güncellenirken hata oluştu:', reportUpdateError);
+      logger.warn('Kullanıcı durumu güncellendi ancak rapor admin notu güncellenemedi.');
     }
     
     return {
       success: true,
-      message: 'Kullanıcı başarıyla banlandı ve rapor çözüldü olarak işaretlendi.',
+      message: 'Kullanıcı devre dışı bırakıldı.',
       user_id: userId
     };
   } catch (error) {
-    console.error('İşlem hatası:', error);
+    logger.error('İşlem hatası:', error);
     throw error;
   }
 };

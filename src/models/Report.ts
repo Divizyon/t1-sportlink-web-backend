@@ -88,6 +88,7 @@ export interface Report {
   id: string; // Benzersiz rapor kimliği
   konu: string; // Raporun konusu (Örn: "Uygunsuz Davranış")
   raporlayan: string; // Raporu gönderen kullanıcının adı (Örn: "Ahmet Yılmaz")
+  raporlanan: string; // Raporu raporlayanının adı (Örn: "Ayşe Kaya")
   tarih: string; // Raporun oluşturulma tarihi (Örn: "25.08.2023")
   tur: "Kullanıcı" | "Etkinlik"; // Raporun türü
   oncelik: "Yüksek" | "Orta" | "Düşük"; // Raporun önceliği
@@ -122,8 +123,9 @@ export interface DatabaseReport {
     last_name?: string;
   };
   reported: {
-    first_name?: string;
-    last_name?: string;
+    first_name: string;
+    last_name: string;
+    email: string;
   };
   event: {
     title?: string;

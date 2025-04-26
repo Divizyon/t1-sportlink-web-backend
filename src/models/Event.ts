@@ -77,7 +77,7 @@ import { z } from 'zod';
  *           description: Maksimum katılımcı sayısı
  *         status:
  *           type: string
- *           enum: [ACTIVE, CANCELLED, COMPLETED]
+ *           enum: [PENDING, ACTIVE, REJECTED, CANCELLED, COMPLETED]
  *           description: Etkinliğin durumu
  *         created_at:
  *           type: string
@@ -245,7 +245,9 @@ import { z } from 'zod';
  */
 
 export const EventStatus = {
+  PENDING: 'PENDING',
   ACTIVE: 'ACTIVE',
+  REJECTED: 'REJECTED',
   CANCELLED: 'CANCELLED',
   COMPLETED: 'COMPLETED'
 } as const;
@@ -273,7 +275,7 @@ export const EventValidationSchema = z.object({
   location_latitude: z.number().min(-90).max(90),
   location_longitude: z.number().min(-180).max(180),
   max_participants: z.number().int().min(2).max(1000),
-  status: z.enum([EventStatus.ACTIVE, EventStatus.CANCELLED, EventStatus.COMPLETED]),
+  status: z.enum([EventStatus.PENDING, EventStatus.ACTIVE, EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED]),
   created_at: z.string().or(z.coerce.date()),
   updated_at: z.string().or(z.coerce.date()),
   sport: z.optional(z.object({
@@ -293,7 +295,7 @@ export const EventValidationSchema = z.object({
 );
 
 export const UpdateEventStatusSchema = z.object({
-  status: z.enum([EventStatus.ACTIVE, EventStatus.CANCELLED, EventStatus.COMPLETED])
+  status: z.enum([EventStatus.PENDING, EventStatus.ACTIVE, EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])
 });
 
 export type Event = z.infer<typeof EventValidationSchema>;

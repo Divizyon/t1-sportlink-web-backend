@@ -31,6 +31,16 @@ export const formatEvent = (event: any, sportData?: any): any => {
     description: event.sport?.description || ""
   };
   
+  // Creator bilgilerini hazırla
+  const creator = event.creator || {};
+  const creator_name = creator.first_name && creator.last_name 
+    ? `${creator.first_name} ${creator.last_name}`
+    : 'Anonim';
+
+  // Katılımcı sayısını hesapla
+  const current_participants = event.participants?.[0]?.count || 0;
+  const is_full = current_participants >= (event.max_participants || 0);
+  
   // Standart formatta etkinlik nesnesi döndür
   return {
     id: event.id,
@@ -48,6 +58,10 @@ export const formatEvent = (event: any, sportData?: any): any => {
     created_at: event.created_at,
     updated_at: event.updated_at,
     creator_id: event.creator_id,
+    creator_name: creator_name,
+    creator_role: creator.role || 'USER',
+    current_participants,
+    is_full,
     sport,
     sport_category: sport.name
   };
@@ -57,12 +71,19 @@ export const findEventById = async (id: string): Promise<any> => {
   try {
     logger.info(`Etkinlik aranıyor: ${id}`);
     
-    // Etkinlik verisi ile birlikte spor verilerini de al
+    // Etkinlik verisi ile birlikte spor, creator ve katılımcı verilerini al
     const { data, error } = await supabaseAdmin
       .from('Events')
       .select(`
         *,
-        sport:Sports!Events_sport_id_fkey(*)
+        sport:Sports!Events_sport_id_fkey(*),
+        creator:users!Events_creator_id_fkey(
+          id,
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants(count)
       `)
       .eq('id', id)
       .single();
@@ -77,7 +98,11 @@ export const findEventById = async (id: string): Promise<any> => {
       throw new EventNotFoundError(id);
     }
 
-    logger.info(`Etkinlik bulundu: ${id}`);
+    logger.info(`Etkinlik bulundu: ${id}`, {
+      creator: data.creator,
+      participantCount: data.participants?.[0]?.count
+    });
+    
     // Standart formata dönüştür
     return formatEvent(data);
   } catch (error) {
@@ -113,12 +138,30 @@ export const canUpdateEventStatus = async (userId: string, event: Event): Promis
   try {
     // Admin kontrolü
     const isAdmin = await isUserAdmin(userId);
+
+    // Admin her türlü durumu değiştirebilir
     if (isAdmin) return true;
 
-    // Etkinlik sahibi kontrolü
-    return userId === event.creator_id;
+    // Admin olmayan kullanıcılar için kısıtlamalar
+    // 1. Sadece kendi etkinliklerini güncelleyebilirler
+    if (userId !== event.creator_id) {
+      return false;
+    }
+
+    // 2. PENDING durumundaki etkinlikleri değiştiremezler (admin onayı gerekli)
+    if (event.status === EventStatus.PENDING) {
+      return false;
+    }
+
+    // 3. REJECTED durumundaki etkinlikleri değiştiremezler
+    if (event.status === EventStatus.REJECTED) {
+      return false;
+    }
+
+    // Diğer durumlar için etkinlik sahibi değişiklik yapabilir
+    return true;
   } catch (error) {
-    console.error('Permission check error:', error);
+    logger.error('Permission check error:', error);
     throw new EventPermissionError('Yetki kontrolü yapılırken bir hata oluştu.');
   }
 };
@@ -133,52 +176,56 @@ export const validateStatusUpdate = async (
       return { isValid: false, message: 'Etkinlik zaten bu durumda.' };
     }
 
-    // Tamamlanmış etkinlik durumu değiştirilemez
-    if (event.status === EventStatus.COMPLETED) {
-      return { isValid: false, message: 'Tamamlanmış etkinliğin durumu değiştirilemez.' };
+    // Tamamlanmış veya reddedilmiş etkinlik durumu değiştirilemez
+    if (event.status === EventStatus.COMPLETED || event.status === EventStatus.REJECTED) {
+      return { isValid: false, message: `${event.status === EventStatus.COMPLETED ? 'Tamamlanmış' : 'Reddedilmiş'} etkinliğin durumu değiştirilemez.` };
     }
 
     const now = new Date();
     const startTime = new Date(event.start_time);
     const endTime = new Date(event.end_time);
 
-    // Aktif duruma geçerken kontroller
-    if (newStatus === EventStatus.ACTIVE) {
-      // İptal edilmiş etkinlik tekrar aktifleştirilebilir, ama sadece başlamamışsa
-      if (event.status === EventStatus.CANCELLED && startTime <= now) {
-        return { 
-          isValid: false, 
-          message: 'İptal edilmiş bir etkinlik, başlangıç zamanı geçtikten sonra tekrar aktifleştirilemez.' 
-        };
+    // PENDING durumundan geçiş kontrolleri
+    if (event.status === EventStatus.PENDING) {
+      // PENDING -> ACTIVE veya REJECTED (sadece admin)
+      if (newStatus === EventStatus.ACTIVE || newStatus === EventStatus.REJECTED) {
+        return { isValid: true, message: '' };
+      }
+      return { isValid: false, message: 'Bekleyen etkinlik sadece onaylanabilir veya reddedilebilir.' };
+    }
+
+    // ACTIVE durumundan geçiş kontrolleri
+    if (event.status === EventStatus.ACTIVE) {
+      // ACTIVE -> CANCELLED (etkinlik başlamadan önce)
+      if (newStatus === EventStatus.CANCELLED) {
+        return { isValid: true, message: '' };
+      }
+
+      // ACTIVE -> COMPLETED (etkinlik başladıktan sonra)
+      if (newStatus === EventStatus.COMPLETED) {
+        if (startTime > now) {
+          return { 
+            isValid: false, 
+            message: 'Etkinlik henüz başlamadı, tamamlandı olarak işaretlenemez.' 
+          };
+        }
+        return { isValid: true, message: '' };
       }
     }
 
-    // İptal durumuna geçerken kontroller
-    if (newStatus === EventStatus.CANCELLED) {
-      // Etkinlik başladıktan sonra iptal edilebilir (erken sonlandırma)
-      // Herhangi bir özel kısıtlama yok
+    // CANCELLED durumundan geçiş kontrolleri
+    if (event.status === EventStatus.CANCELLED) {
+      // CANCELLED -> ACTIVE (sadece etkinlik başlamadan önce)
+      if (newStatus === EventStatus.ACTIVE && startTime > now) {
+        return { isValid: true, message: '' };
+      }
+      return { 
+        isValid: false, 
+        message: 'İptal edilmiş etkinlik sadece başlamamışsa aktifleştirilebilir.' 
+      };
     }
 
-    // Tamamlandı durumuna geçerken kontroller
-    if (newStatus === EventStatus.COMPLETED) {
-      // Etkinlik sadece başladıktan sonra tamamlandı olarak işaretlenebilir
-      if (startTime > now) {
-        return { 
-          isValid: false, 
-          message: 'Etkinlik henüz başlamadı, tamamlandı olarak işaretlenemez.' 
-        };
-      }
-      
-      // İptal edilmiş etkinlik tamamlandı olarak işaretlenemez
-      if (event.status === EventStatus.CANCELLED) {
-        return { 
-          isValid: false,
-          message: 'İptal edilmiş bir etkinlik tamamlandı olarak işaretlenemez.' 
-        };
-      }
-    }
-
-    return { isValid: true, message: '' };
+    return { isValid: false, message: 'Geçersiz durum değişikliği.' };
   } catch (error) {
     logger.error('Durum validasyon hatası:', error);
     return { isValid: false, message: 'Durum validasyonu sırasında bir hata oluştu.' };
@@ -335,10 +382,10 @@ export const createEvent = async (eventData: any) => {
     const eventDataToInsert = {
       title: eventData.title,
       description: eventData.description || '',
-      creator_id: eventData.creator_id, // UUID formatında
+      creator_id: eventData.creator_id,
       sport_id: typeof eventData.sport_id === 'string' && !isNaN(Number(eventData.sport_id)) 
         ? Number(eventData.sport_id) 
-        : eventData.sport_id, // Sayı olarak gelebilecek string ise dönüştür, değilse olduğu gibi kullan
+        : eventData.sport_id,
       event_date: eventData.event_date,
       start_time: eventData.start_time,
       end_time: eventData.end_time,
@@ -346,76 +393,73 @@ export const createEvent = async (eventData: any) => {
       location_latitude: parseFloat(eventData.location_lat || eventData.location_latitude || 0),
       location_longitude: parseFloat(eventData.location_long || eventData.location_longitude || 0),
       max_participants: Number(eventData.max_participants),
-      status: EventStatus.ACTIVE,
-      created_at: new Date().toISOString(), // Şu anki zamanı ekle
-      updated_at: new Date().toISOString()  // Şu anki zamanı ekle
+      status: EventStatus.PENDING,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
     
     logger.info(`Supabase insert hazırlandı: ${JSON.stringify(eventDataToInsert, null, 2)}`);
 
-    // Etkinliği oluştur - supabase yerine supabaseAdmin kullanıyoruz (RLS bypass)
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('Events')
-        .insert([eventDataToInsert])
-        .select(`
-          *,
-          sport:Sports!Events_sport_id_fkey(*)
-        `)
-        .single();
+    // Etkinliği oluştur
+    const { data, error } = await supabaseAdmin
+      .from('Events')
+      .insert([eventDataToInsert])
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*),
+        creator:users!Events_creator_id_fkey(
+          id,
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants(count)
+      `)
+      .single();
 
-      if (error) {
-        logger.error(`Supabase insert hatası: ${error.message}`, { error: JSON.stringify(error, null, 2) });
-        
-        // Genel hata kodları kontrolü
-        if (error.code) {
-          logger.error(`PostgreSQL hata kodu: ${error.code}`, { 
-            code: error.code,
-            details: error.details || 'Detay yok',
-            message: error.message || 'Mesaj yok',
-            hint: error.hint || 'İpucu yok'
-          });
-        }
-        
-        if (error.code === '23503') { // Foreign key violation
-          logger.error(`Foreign key violation hatası: ${error.details || 'Detay bulunmuyor'}`);
-          throw new Error(`Geçersiz ilişki hatası: ${error.message}`);
-        }
-        
-        if (error.code === '22P02') { // Invalid text representation
-          logger.error(`Veri tipi hatası: ${error.details || 'Detay bulunmuyor'}`);
-          throw new Error(`Geçersiz veri türü: ${error.message}`);
-        }
-        
-        if (error.code === '23505') { // Unique violation
-          logger.error(`Unique violation hatası: ${error.details || 'Detay bulunmuyor'}`);
-          throw new Error(`Bu etkinlik zaten var: ${error.message}`);
-        }
-        
-        // RLS hataları
-        if (error.code === '42501') { // Permission denied
-          logger.error(`İzin hatası - RLS kuralları engel olmuş olabilir`);
-          throw new Error(`Erişim izni hatası: ${error.message}`);
-        }
-        
-        // Diğer hata durumları
-        throw new Error(`Etkinlik oluşturulamadı: ${error.message}`);
+    if (error) {
+      logger.error(`Supabase insert hatası: ${error.message}`, { error: JSON.stringify(error, null, 2) });
+      
+      // Genel hata kodları kontrolü
+      if (error.code) {
+        logger.error(`PostgreSQL hata kodu: ${error.code}`, { 
+          code: error.code,
+          details: error.details || 'Detay yok',
+          message: error.message || 'Mesaj yok',
+          hint: error.hint || 'İpucu yok'
+        });
       }
-
-      if (!data) {
-        logger.error('Etkinlik verisi bulunamadı, ancak hata da döndürülmedi');
-        throw new Error('Etkinlik oluşturuldu ancak veri döndürülemedi');
+      
+      if (error.code === '23503') {
+        logger.error(`Foreign key violation hatası: ${error.details || 'Detay bulunmuyor'}`);
+        throw new Error(`Geçersiz ilişki hatası: ${error.message}`);
       }
-
-      logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`, { data: JSON.stringify(data, null, 2) });
-      // Standart formata dönüştür
-      return formatEvent(data);
-    } catch (dbError) {
-      logger.error(`Veritabanı işlemi hatası: ${dbError instanceof Error ? dbError.message : 'Bilinmeyen hata'}`, {
-        stack: dbError instanceof Error ? dbError.stack : 'Stack yok'
-      });
-      throw dbError;
+      
+      if (error.code === '22P02') {
+        logger.error(`Veri tipi hatası: ${error.details || 'Detay bulunmuyor'}`);
+        throw new Error(`Geçersiz veri türü: ${error.message}`);
+      }
+      
+      if (error.code === '23505') {
+        logger.error(`Unique violation hatası: ${error.details || 'Detay bulunmuyor'}`);
+        throw new Error(`Bu etkinlik zaten var: ${error.message}`);
+      }
+      
+      if (error.code === '42501') {
+        logger.error(`İzin hatası - RLS kuralları engel olmuş olabilir`);
+        throw new Error(`Erişim izni hatası: ${error.message}`);
+      }
+      
+      throw new Error(`Etkinlik oluşturulamadı: ${error.message}`);
     }
+
+    if (!data) {
+      logger.error('Etkinlik verisi bulunamadı, ancak hata da döndürülmedi');
+      throw new Error('Etkinlik oluşturuldu ancak veri döndürülemedi');
+    }
+
+    logger.info(`Etkinlik başarıyla oluşturuldu: ${data.id}`, { data: JSON.stringify(data, null, 2) });
+    return formatEvent(data);
   } catch (error) {
     logger.error(`createEvent service hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
     logger.error(`Hata stack: ${error instanceof Error ? error.stack : 'Stack yok'}`);
@@ -431,7 +475,14 @@ export const getAllEvents = async () => {
       .from('Events')
       .select(`
         *,
-        sport:Sports!Events_sport_id_fkey(*)
+        sport:Sports!Events_sport_id_fkey(*),
+        creator:users!Events_creator_id_fkey(
+          id,
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants(count)
       `)
       .order('event_date', { ascending: true });
     
@@ -470,8 +521,13 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       .select(`
         *,
         sport:Sports!Events_sport_id_fkey(*),
-        creator:users!Events_creator_id_fkey(id, first_name, last_name),
-        participants:Event_Participants(user_id)
+        creator:users!Events_creator_id_fkey(
+          id,
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants(count)
       `)
       .gte('event_date', startOfToday.toISOString())
       .lte('event_date', endOfToday.toISOString())
@@ -481,21 +537,6 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       logger.error('Bugünün etkinlikleri alınırken hata oluştu:', error);
       throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
     }
-
-    // Kullanıcının katıldığı etkinlikleri belirle
-    const { data: userParticipation, error: participationError } = userId 
-      ? await supabaseAdmin
-          .from('Event_Participants')
-          .select('event_id')
-          .eq('user_id', userId)
-      : { data: [], error: null };
-    
-    if (participationError) {
-      logger.error('Kullanıcı katılım bilgisi alınırken hata oluştu:', participationError);
-    }
-    
-    // Kullanıcının katıldığı etkinlik ID'lerini al
-    const userEventIds = (userParticipation || []).map(p => p.event_id);
 
     // Verileri frontend formatına dönüştür
     if (!events) return [];
@@ -708,6 +749,91 @@ export const deleteEvent = async (
     logger.error(`deleteEvent hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`, {
       stack: error instanceof Error ? error.stack : 'Stack yok'
     });
+    throw error;
+  }
+};
+
+export const getEventDetails = async (eventId: string) => {
+  try {
+    const { data: event, error } = await supabase
+      .from('Events')
+      .select(`
+        *,
+        creator:users!creator_id (
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants (count)
+      `)
+      .eq('id', eventId)
+      .single();
+
+    if (error) {
+      logger.error('Etkinlik detayları alınırken hata:', error);
+      throw error;
+    }
+
+    // Katılımcı sayısını ve doluluk durumunu kontrol et
+    const currentParticipants = event.participants[0].count;
+    const isFull = currentParticipants >= event.max_participants;
+
+    return {
+      ...event,
+      creator_name: `${event.creator.first_name} ${event.creator.last_name}`,
+      creator_role: event.creator.role,
+      current_participants: currentParticipants,
+      is_full: isFull
+    };
+  } catch (error) {
+    logger.error('Etkinlik detayları alınırken hata:', error);
+    throw error;
+  }
+};
+
+export const joinEvent = async (eventId: string, userId: string, role: string = 'PARTICIPANT') => {
+  try {
+    // Önce etkinlik detaylarını ve katılımcı sayısını kontrol et
+    const { data: event, error: eventError } = await supabase
+      .from('Events')
+      .select(`
+        max_participants,
+        participants:Event_Participants (count)
+      `)
+      .eq('id', eventId)
+      .single();
+
+    if (eventError) {
+      logger.error('Etkinlik bilgileri alınırken hata:', eventError);
+      throw eventError;
+    }
+
+    // Katılımcı sayısını kontrol et
+    const currentParticipants = event.participants[0].count;
+    if (currentParticipants >= event.max_participants) {
+      logger.warn(`Etkinlik dolu: eventId=${eventId}, maxParticipants=${event.max_participants}, currentParticipants=${currentParticipants}`);
+      throw new Error('Bu etkinlik maksimum katılımcı sayısına ulaştı');
+    }
+
+    // Katılımcı ekle
+    const { error: participantError } = await supabase
+      .from('Event_Participants')
+      .insert({
+        event_id: eventId,
+        user_id: userId,
+        role: role,
+        created_at: new Date().toISOString()
+      });
+
+    if (participantError) {
+      logger.error('Etkinliğe katılım eklenirken hata:', participantError);
+      throw participantError;
+    }
+
+    logger.info(`Etkinliğe katılım başarılı: eventId=${eventId}, userId=${userId}, role=${role}`);
+    return { success: true };
+  } catch (error) {
+    logger.error('Etkinliğe katılım sırasında hata:', error);
     throw error;
   }
 }; 

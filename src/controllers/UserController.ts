@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import * as userService from '../services/userService';
+import supabase, { supabaseAdmin } from '../config/supabase';
+import logger from '../utils/logger';
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -159,4 +161,69 @@ export const sendWarningToUserController = async (req: Request, res: Response) =
     console.error('Uyarı gönderme controller hatası:', error);
     res.status(500).json({ error: 'Uyarı gönderilirken bir hata oluştu' });
   }
-} 
+}
+
+/**
+ * Kullanıcıyı izlemeye alma/izlemeden çıkarma
+ * @param req Express Request
+ * @param res Express Response
+ */
+export const toggleUserWatch = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { watch } = req.body;
+
+    // Önce kullanıcıyı kontrol et
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Kullanıcı bulunamadı'
+      });
+    }
+
+    // İzleme durumunu güncelle
+    const { data: updatedUser, error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        is_watched: watch,
+        watched_since: watch ? new Date().toISOString() : null
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Kullanıcı izleme durumu güncellenirken hata:', updateError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Kullanıcı izleme durumu güncellenirken bir hata oluştu'
+      });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: watch ? 'Kullanıcı başarıyla izlemeye alındı' : 'Kullanıcı izlemeden çıkarıldı',
+      data: {
+        id: updatedUser.id,
+        name: `${updatedUser.first_name} ${updatedUser.last_name}`,
+        email: updatedUser.email,
+        isWatched: updatedUser.is_watched,
+        updatedAt: updatedUser.watched_since,
+        updatedBy: req.user.id
+      }
+    });
+
+  } catch (error) {
+    console.error('toggleUserWatch hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Bir hata oluştu'
+    });
+  }
+}; 

@@ -9,13 +9,14 @@ datasource db {
 }
 
 model Sports {
-  id          BigInt        @id @default(autoincrement())
-  name        String
-  description String
-  icon        String
-  events      Events[]
-  news        News[]
-  userSports  User_Sports[]
+  id                   BigInt                 @id @default(autoincrement())
+  name                 String
+  description          String
+  icon                 String
+  events               Events[]
+  news                 News[]
+  userSports           User_Sports[]
+  user_favorite_sports user_favorite_sports[]
 }
 
 model User_Sports {
@@ -42,6 +43,7 @@ model News {
 }
 
 model Events {
+  id                 BigInt               @id @default(autoincrement())
   sport_id           BigInt
   title              String
   description        String
@@ -49,7 +51,6 @@ model Events {
   start_time         DateTime
   end_time           DateTime
   location_name      String
-  id                 BigInt               @id @default(autoincrement())
   location_latitude  Float
   location_longitude Float
   max_participants   Int
@@ -70,17 +71,17 @@ model Event_Participants {
   joined_at DateTime @default(now())
   role      String
   user_id   String   @db.Uuid
-  event     Events   @relation(fields: [event_id], references: [id])
+  event     Events   @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user      users    @relation(fields: [user_id], references: [id])
 
   @@id([event_id, user_id])
 }
 
 model Event_Ratings {
+  id         BigInt   @id @default(autoincrement())
   event_id   BigInt
   rating     Int
   review     String
-  id         BigInt   @id @default(autoincrement())
   created_at DateTime @default(now())
   user_id    String   @db.Uuid
   event      Events   @relation(fields: [event_id], references: [id])
@@ -100,8 +101,8 @@ model Notifications {
 }
 
 model Reports {
-  event_id      BigInt
   id            BigInt   @id @default(autoincrement())
+  event_id      BigInt
   report_reason String
   report_date   DateTime @default(now())
   status        String
@@ -114,12 +115,12 @@ model Reports {
 }
 
 model Admin_Logs {
+  id          BigInt   @id @default(autoincrement())
   action_type String
   description String
   created_at  DateTime @default(now())
   admin_id    String   @db.Uuid
   admin       users    @relation(fields: [admin_id], references: [id])
-  id          BigInt   @id @default(autoincrement())
 }
 
 model User_Ratings {
@@ -135,28 +136,38 @@ model User_Ratings {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model users {
-  id                         String               @id @db.Uuid
-  username                   String               @unique
-  email                      String               @unique
-  first_name                 String
-  last_name                  String
-  phone                      String
-  profile_picture            String
-  default_location_latitude  Float
-  default_location_longitude Float
-  role                       String               @default("USER")
-  created_at                 DateTime             @default(now())
-  updated_at                 DateTime
-  adminLogs                  Admin_Logs[]
-  eventParticipants          Event_Participants[]
-  eventRatings               Event_Ratings[]
-  createdEvents              Events[]             @relation("UserEvents")
-  notifications              Notifications[]
-  reportsReceived            Reports[]            @relation("Reported")
-  reportsMade                Reports[]            @relation("Reporter")
-  userRatingsReceived        User_Ratings[]       @relation("RatedUser")
-  userRatingsGiven           User_Ratings[]       @relation("RatingUser")
-  userSports                 User_Sports[]
+  id                                          String                 @id @db.Uuid
+  username                                    String                 @unique
+  email                                       String                 @unique
+  first_name                                  String
+  last_name                                   String
+  phone                                       String
+  profile_picture                             String
+  default_location_latitude                   Float
+  default_location_longitude                  Float
+  role                                        String                 @default("USER")
+  created_at                                  DateTime               @default(now())
+  updated_at                                  DateTime
+  is_banned                                   Boolean                @default(false)
+  banned_at                                   DateTime?
+  status                                      String                 @default("active")
+  gender                                      String?
+  age                                         Int?
+  address                                     String?
+  bio                                         String?
+  adminLogs                                   Admin_Logs[]
+  eventParticipants                           Event_Participants[]
+  eventRatings                                Event_Ratings[]
+  createdEvents                               Events[]               @relation("UserEvents")
+  notifications                               Notifications[]
+  reportsReceived                             Reports[]              @relation("Reported")
+  reportsMade                                 Reports[]              @relation("Reporter")
+  userRatingsReceived                         User_Ratings[]         @relation("RatedUser")
+  userRatingsGiven                            User_Ratings[]         @relation("RatingUser")
+  userSports                                  User_Sports[]
+  User_Warnings_User_Warnings_admin_idTousers User_Warnings[]        @relation("User_Warnings_admin_idTousers")
+  User_Warnings_User_Warnings_user_idTousers  User_Warnings[]        @relation("User_Warnings_user_idTousers")
+  user_favorite_sports                        user_favorite_sports[]
 }
 
 model security_logs {
@@ -169,4 +180,29 @@ model security_logs {
   status     String    @db.VarChar(20)
   action     String
   created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model User_Warnings {
+  id                                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id                             String?   @db.Uuid
+  admin_id                            String?   @db.Uuid
+  message                             String
+  sent_at                             DateTime? @default(now()) @db.Timestamptz(6)
+  is_read                             Boolean?  @default(false)
+  users_User_Warnings_admin_idTousers users?    @relation("User_Warnings_admin_idTousers", fields: [admin_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_User_Warnings_user_idTousers  users?    @relation("User_Warnings_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([admin_id], map: "idx_user_warnings_admin_id")
+  @@index([user_id], map: "idx_user_warnings_user_id")
+}
+
+model user_favorite_sports {
+  user_id  String   @db.Uuid
+  sport_id BigInt
+  added_at DateTime @default(now()) @db.Timestamptz(6)
+  Sports   Sports   @relation(fields: [sport_id], references: [id])
+  users    users    @relation(fields: [user_id], references: [id])
+
+  @@id([user_id, sport_id])
 }
