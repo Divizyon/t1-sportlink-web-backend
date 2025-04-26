@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { sendWarningEmail } from './emailService';
 import { NotFoundError, BadRequestError } from '../errors/customErrors';
 import logger from '../utils/logger';
+import { AdminReportInfo } from '../models/Report';
 
 // Sport ve UserSport tipleri için interface tanımlamaları
 interface Sport {
@@ -747,4 +748,90 @@ export const updateUserAvatar = async (userId: string, file: Express.Multer.File
 
   logger.info(`Avatar updated successfully for user ${userId}. URL: ${avatarUrl}`);
   return avatarUrl;
+};
+
+/**
+ * Kullanıcının raporlandığı raporları getirir
+ * @param userId Kullanıcı ID'si
+ * @returns Kullanıcının raporlandığı raporlar
+ */
+export const getUserReports = async (userId: string): Promise<AdminReportInfo[]> => {
+  try {
+    console.log(`Kullanıcının raporları getiriliyor, id: ${userId}`);
+    
+    // Kullanıcının raporlandığı raporları getir
+    const { data, error } = await supabaseAdmin
+      .from('Reports')
+      .select(`
+        id,
+        status,
+        admin_notes,
+        updated_by,
+        admin:users!updated_by (email, username)
+      `)
+      .eq('reported_id', userId);
+      
+    if (error) {
+      console.error('Kullanıcı raporları getirilirken hata oluştu:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        query: `SELECT id, status, admin_notes, updated_by FROM Reports WHERE reported_id = '${userId}'`
+      });
+      throw error;
+    }
+
+    console.log(`Kullanıcının raporları sorgusu tamamlandı:`, {
+      userId,
+      reportCount: data?.length || 0,
+      reportIds: data?.map(r => r.id)
+    });
+
+    if (!data || data.length === 0) {
+      console.log(`Kullanıcı için rapor bulunamadı: ${userId}`);
+      return [];
+    }
+
+    // Raporları dönüştür
+    const formattedReports: AdminReportInfo[] = data.map(report => {
+      // Durumu Türkçe'ye çevir
+      let durum = "Beklemede";
+      switch (report.status?.toLowerCase() || 'pending') {
+        case 'pending':
+          durum = "Beklemede";
+          break;
+        case 'reviewing':
+          durum = "İnceleniyor";
+          break;
+        case 'resolved':
+          durum = "Çözüldü";
+          break;
+        case 'rejected':
+          durum = "Reddedildi";
+          break;
+      }
+      
+      // TypeScript'in admin yapısını anlayabilmesi için tip dönüşümü yapalım
+      const admin = report.admin as { email?: string; username?: string } || {};
+      
+      const reportInfo: AdminReportInfo = {
+        rapor_id: report.id?.toString() || "",
+        admin_email: admin?.email || "",
+        admin_username: admin?.username || "",
+        admin_notu: report.admin_notes || "",
+        durum
+      };
+      
+      return reportInfo;
+    });
+
+    console.log('Dönüştürülmüş raporlar sayısı:', formattedReports.length);
+    return formattedReports;
+  } catch (error) {
+    console.error('Kullanıcı raporları servis hatası:', error);
+    // Hata olsa bile boş dizi döndür
+    return [];
+  }
 }; 

@@ -53,22 +53,50 @@ export const getUserById = async (req: Request, res: Response) => {
 export const getUserDetails = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    console.log(`getUserDetails çağrıldı, id: ${id}`);
+    
     const userDetails = await userService.getUserDetailsById(id);
     
     if (!userDetails) {
+      console.log(`Kullanıcı bulunamadı, id: ${id}`);
       return res.status(404).json({
         status: 'error',
         message: 'Kullanıcı bulunamadı.'
       });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: userDetails
-    });
+    console.log(`Kullanıcı detayları alındı, şimdi raporlar getiriliyor. id: ${id}`);
+    
+    // Kullanıcı raporlarını getir
+    try {
+      const userReports = await userService.getUserReports(id);
+      console.log(`Kullanıcı raporları alındı, rapor sayısı: ${userReports.length}`);
+
+      // Kullanıcı detaylarına raporları ekle
+      const responseData = {
+        ...userDetails,
+        reports: userReports
+      };
+
+      return res.status(200).json({
+        status: 'success',
+        data: responseData
+      });
+    } catch (reportError) {
+      console.error('Kullanıcı raporları getirilirken hata oluştu:', reportError);
+      
+      // Raporlarda hata olsa bile kullanıcı detaylarını döndür, reports: [] olacak
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          ...userDetails,
+          reports: []
+        }
+      });
+    }
   } catch (error) {
     console.error('Get user details error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Kullanıcı detayları getirilirken bir hata oluştu.'
     });

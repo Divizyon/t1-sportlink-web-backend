@@ -260,4 +260,147 @@ router.patch('/:id/notes', ReportController.updateAdminNotes);
  */
 router.post('/:id/ban-user', ReportController.banUserFromReport);
 
+/**
+ * @swagger
+ * /api/reports/{id}/admin-info:
+ *   get:
+ *     summary: Rapor için admin işlem bilgilerini getir
+ *     description: Raporu işleyen adminin e-posta, kullanıcı adı, admin notu ve rapor ID bilgilerini döndürür.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Rapor ID'si
+ *     responses:
+ *       200:
+ *         description: Admin bilgileri başarıyla getirildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     rapor_id:
+ *                       type: string
+ *                       description: Rapor ID'si
+ *                       example: "42"
+ *                     admin_email:
+ *                       type: string
+ *                       description: Admin e-posta adresi
+ *                       example: admin@sportlink.com
+ *                     admin_username:
+ *                       type: string
+ *                       description: Admin kullanıcı adı
+ *                       example: admin123
+ *                     admin_notu:
+ *                       type: string
+ *                       description: Rapora eklenen admin notu
+ *                       example: "Bu kullanıcı uyarılmıştır."
+ *                     durum:
+ *                       type: string
+ *                       description: Raporun durumu
+ *                       example: "Çözüldü"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         description: Rapor bulunamadı
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/:id/admin-info', ReportController.getReportAdminInfo);
+
+/**
+ * @swagger
+ * /api/reports/{id}:
+ *   get:
+ *     summary: Rapor detaylarını getir
+ *     description: Belirli bir raporun tüm detaylarını getirir.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Rapor ID'si
+ *     responses:
+ *       200:
+ *         description: Rapor detayları başarıyla getirildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Rapor detayları başarıyla getirildi
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 42
+ *                     report_reason:
+ *                       type: string
+ *                       example: Uygunsuz davranış
+ *                     report_date:
+ *                       type: string
+ *                       format: date-time
+ *                     status:
+ *                       type: string
+ *                       enum: [pending, resolved, rejected]
+ *                     admin_notes:
+ *                       type: string
+ *                       example: Kullanıcı uyarıldı
+ *                     reporter:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         username:
+ *                           type: string
+ *                     reported_user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         username:
+ *                           type: string
+ *                     event:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         title:
+ *                           type: string
+ *       400:
+ *         description: Geçersiz rapor ID formatı
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         description: Rapor bulunamadı
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/:id', ReportController.getReportDetails);
+
 export default router; 
