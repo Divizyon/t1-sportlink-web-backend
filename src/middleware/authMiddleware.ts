@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import supabase from '../config/supabase';
+import supabase, { supabaseAdmin } from '../config/supabase';
 import * as userService from '../services/userService';
 import { User } from '../models/User';
 import logger from '../utils/logger';
@@ -64,6 +64,22 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       });
     }
 
+    // Kullanıcının durumunu kontrol et
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('status')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userError) {
+      logger.error('Kullanıcı durumu kontrolü hatası:', userError);
+      return res.status(500).json({ error: 'Sunucu hatası' });
+    }
+
+    if (userData?.status === 'inactive') {
+      return res.status(403).json({ error: 'Hesabınız devre dışı bırakılmıştır. Lütfen yönetici ile iletişime geçin.' });
+    }
+
     logger.info(`Token doğrulandı, kullanıcı ID: ${data.user.id}`);
     
     // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz
@@ -103,10 +119,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     next();
   } catch (error) {
     logger.error('Auth middleware hatası:', error);
-    return res.status(401).json({
-      status: 'error',
-      message: 'Kimlik doğrulama başarısız oldu.'
-    });
+    return res.status(500).json({ error: 'Sunucu hatası' });
   }
 };
 
@@ -139,6 +152,22 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     if (error || !data.user) {
       logger.info('Geçersiz token, misafir kullanıcı olarak devam ediliyor');
       return next();
+    }
+
+    // Kullanıcının durumunu kontrol et
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('status')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userError) {
+      logger.error('Kullanıcı durumu kontrolü hatası:', userError);
+      return res.status(500).json({ error: 'Sunucu hatası' });
+    }
+
+    if (userData?.status === 'inactive') {
+      return res.status(403).json({ error: 'Hesabınız devre dışı bırakılmıştır. Lütfen yönetici ile iletişime geçin.' });
     }
 
     // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz

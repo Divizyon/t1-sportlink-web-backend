@@ -332,25 +332,41 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
 
 export const handleOAuthCallback = async (req: Request, res: Response) => {
   try {
-    const { code } = req.query;
+    const code = req.query.code as string;
     
-    if (!code || typeof code !== 'string') {
+    if (!code) {
       return res.status(400).json({
         status: 'error',
-        message: 'Geçersiz OAuth kodu.'
+        message: 'OAuth kodu eksik'
       });
     }
-    
-    // OAuth token değişimi ve kullanıcıyı veritabanına kaydetme
+
     const data = await authService.handleOAuthCallback(code);
     
-    // Başarılı giriş sonrası ana sayfaya yönlendir
-    res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
+    // Frontend'e yönlendir
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUrl = new URL('/auth/callback', frontendUrl);
+    
+    // Token ve kullanıcı bilgilerini URL'e ekle
+    redirectUrl.searchParams.append('access_token', data.session?.access_token || '');
+    redirectUrl.searchParams.append('refresh_token', data.session?.refresh_token || '');
+    
+    if (data.user) {
+      redirectUrl.searchParams.append('user_id', data.user.id);
+      redirectUrl.searchParams.append('email', data.user.email || '');
+      redirectUrl.searchParams.append('first_name', data.user.user_metadata?.given_name || '');
+      redirectUrl.searchParams.append('last_name', data.user.user_metadata?.family_name || '');
+    }
+    
+    res.redirect(redirectUrl.toString());
   } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'OAuth işlemi sırasında bir hata oluştu.'
-    });
+    console.error('OAuth callback hatası:', error);
+    
+    // Hata durumunda frontend'e yönlendir
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const errorUrl = new URL('/auth/error', frontendUrl);
+    errorUrl.searchParams.append('error', 'Google ile giriş başarısız oldu');
+    
+    res.redirect(errorUrl.toString());
   }
 }; 
