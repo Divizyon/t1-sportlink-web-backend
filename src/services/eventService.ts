@@ -262,13 +262,30 @@ export const updateEventStatus = async (
       throw new EventStatusError(message);
     }
 
-    // Optimistic locking için version kontrolü
+    // Prepare data for update, including approval/rejection timestamps
+    const updateData: any = {
+      status: status,
+      updated_at: new Date() // Use Date object directly, Supabase handles conversion
+    };
+
+    if (status === EventStatus.ACTIVE) {
+      // Check if it was PENDING before to set approved_at
+      // We might need to fetch the event again or trust the validation logic implicitly set the previous state
+      // Assuming the state transition PENDING -> ACTIVE implies approval
+      if (event.status === EventStatus.PENDING) {
+           updateData.approved_at = new Date();
+           logger.info(`Setting approved_at for event ${eventId}`);
+      }
+    } else if (status === EventStatus.REJECTED) {
+      updateData.rejected_at = new Date();
+      logger.info(`Setting rejected_at for event ${eventId}`);
+    }
+
+    // Optimistic locking için version kontrolü (optional, remove if not using versioning)
+    // Execute the update
     const { data, error } = await supabaseAdmin
       .from('Events')
-      .update({ 
-        status: status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData) // Use the prepared updateData object
       .eq('id', eventId)
       .select(`
         *,
