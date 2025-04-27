@@ -1,6 +1,6 @@
-import express from 'express';
-import * as EventController from '../controllers/EventController';
-import { protect, optionalAuth } from '../middleware/authMiddleware';
+import express from "express";
+import * as EventController from "../controllers/EventController";
+import { protect, optionalAuth } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
@@ -43,7 +43,7 @@ const router = express.Router();
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/today', optionalAuth, EventController.getTodayEvents);
+router.get("/today", optionalAuth, EventController.getTodayEvents);
 
 /**
  * @swagger
@@ -73,7 +73,7 @@ router.get('/today', optionalAuth, EventController.getTodayEvents);
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/', EventController.getAllEvents);
+router.get("/", EventController.getAllEvents);
 
 /**
  * @swagger
@@ -106,10 +106,12 @@ router.get('/', EventController.getAllEvents);
  *                 minLength: 3
  *                 maxLength: 100
  *                 description: Etkinlik başlığı
+ *                 example: "Pazar Sabahı Koşusu"
  *               description:
  *                 type: string
  *                 maxLength: 1000
  *                 description: Etkinlik açıklaması
+ *                 example: "Kadıköy sahilde sabah koşusu etkinliği"
  *               sport_id:
  *                 type: integer
  *                 format: int64
@@ -118,35 +120,42 @@ router.get('/', EventController.getAllEvents);
  *               event_date:
  *                 type: string
  *                 format: date
+ *                 example: "2025-05-01"
  *                 description: Etkinlik tarihi (YYYY-MM-DD)
  *               start_time:
  *                 type: string
  *                 format: date-time
+ *                 example: "2025-05-01T08:00:00.000Z"
  *                 description: Etkinlik başlangıç zamanı (ISO 8601 formatında)
  *               end_time:
  *                 type: string
  *                 format: date-time
+ *                 example: "2025-05-01T10:00:00.000Z"
  *                 description: Etkinlik bitiş zamanı (ISO 8601 formatında)
  *               location_name:
  *                 type: string
  *                 maxLength: 200
+ *                 example: "Kadıköy Sahil"
  *                 description: Etkinlik konumunun adı
  *               location_lat:
  *                 type: number
  *                 minimum: -90
  *                 maximum: 90
  *                 format: float
+ *                 example: 40.9845
  *                 description: Etkinlik konumunun enlem bilgisi
  *               location_long:
  *                 type: number
  *                 minimum: -180
  *                 maximum: 180
  *                 format: float
+ *                 example: 29.0255
  *                 description: Etkinlik konumunun boylam bilgisi
  *               max_participants:
  *                 type: integer
  *                 minimum: 2
  *                 maximum: 1000
+ *                 example: 15
  *                 description: Maksimum katılımcı sayısı
  *     responses:
  *       201:
@@ -166,12 +175,23 @@ router.get('/', EventController.getAllEvents);
  *                       $ref: '#/components/schemas/Event'
  *       400:
  *         description: Geçersiz istek veya veri doğrulama hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: "Etkinlik tarihi geçmiş bir tarih olamaz"
  *       401:
  *         description: Yetkilendirme hatası
  *       500:
  *         description: Sunucu hatası
  */
-router.post('/', protect, EventController.createEvent);
+router.post("/", protect, EventController.createEvent);
 
 /**
  * @swagger
@@ -208,7 +228,7 @@ router.post('/', protect, EventController.createEvent);
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/:id', EventController.getEventById);
+router.get("/:id", EventController.getEventById);
 
 /**
  * @swagger
@@ -266,7 +286,7 @@ router.get('/:id', EventController.getEventById);
  *       500:
  *         description: Sunucu hatası
  */
-router.patch('/:id/status', protect, EventController.updateEventStatus);
+router.patch("/:id/status", protect, EventController.updateEventStatus);
 
 /**
  * @swagger
@@ -365,7 +385,7 @@ router.patch('/:id/status', protect, EventController.updateEventStatus);
  *       500:
  *         description: Sunucu hatası
  */
-router.put('/:id', protect, EventController.updateEvent);
+router.put("/:id", protect, EventController.updateEvent);
 
 /**
  * @swagger
@@ -406,6 +426,6 @@ router.put('/:id', protect, EventController.updateEvent);
  *       500:
  *         description: Sunucu hatası
  */
-router.delete('/:id', protect, EventController.deleteEvent);
+router.delete("/:id", protect, EventController.deleteEvent);
 
-export default router; 
+export default router;

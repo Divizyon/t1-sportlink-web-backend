@@ -389,6 +389,58 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
   }
 };
 
+/**
+ * Validates that an event's date is not in the past
+ * @param eventDate The event date string in ISO format
+ * @param startTime The event start time string (HH:MM format)
+ * @returns Object indicating if the date is valid and any error message
+ */
+export const validateEventDate = (
+  eventDate: string,
+  startTime: string
+): { isValid: boolean; message: string } => {
+  try {
+    logger.info(`Validating event date: ${eventDate} ${startTime}`);
+
+    // Parse the event date and time
+    const dateObj = parseISO(eventDate);
+    const [hours, minutes] = startTime.split(":").map(Number);
+
+    // Create full event datetime
+    const eventDateTime = new Date(dateObj);
+    eventDateTime.setHours(hours, minutes, 0, 0);
+
+    // Get current time
+    const now = new Date();
+
+    // Check if event is in the past
+    if (isBefore(eventDateTime, now)) {
+      logger.warn(
+        `Invalid event date: ${eventDate} ${startTime} is in the past`
+      );
+      return {
+        isValid: false,
+        message: "Etkinlik tarihi geçmiş bir tarih olamaz",
+      };
+    }
+
+    logger.info(
+      `Event date validation successful for: ${eventDate} ${startTime}`
+    );
+    return { isValid: true, message: "" };
+  } catch (error) {
+    logger.error(
+      `Date validation error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    return {
+      isValid: false,
+      message: "Etkinlik tarihi doğrulanamadı",
+    };
+  }
+};
+
 export const createEvent = async (eventData: any) => {
   try {
     logger.info(
@@ -414,6 +466,15 @@ export const createEvent = async (eventData: any) => {
 
     if (!eventData.creator_id) {
       throw new EventValidationError("Oluşturucu ID'si gereklidir");
+    }
+
+    // Validate event date is not in the past
+    const dateValidation = validateEventDate(
+      eventData.event_date,
+      eventData.start_time
+    );
+    if (!dateValidation.isValid) {
+      throw new EventValidationError(dateValidation.message);
     }
 
     // UUID kontrolü
@@ -586,11 +647,60 @@ export const createEvent = async (eventData: any) => {
   }
 };
 
-export const getAllEvents = async (statusFilter?: string | string[]) => {
+export const getAllEvents = async (
+  statusFilter?: string | string[],
+  page: number = 1,
+  pageSize: number = 10,
+  sortBy: string = "created_at",
+  sortOrder: "asc" | "desc" = "desc",
+  dateFilter?: "today" | "upcoming"
+) => {
   try {
     logger.info("Tüm etkinlikler getiriliyor");
 
-    // Create query builder
+    // Create query builder for count
+    let countQuery = supabaseAdmin
+      .from("Events")
+      .select("id", { count: "exact" });
+
+    // Add status filter to count query if provided
+    if (statusFilter) {
+      if (Array.isArray(statusFilter)) {
+        if (statusFilter.length > 0) {
+          countQuery = countQuery.in("status", statusFilter);
+        }
+      } else {
+        countQuery = countQuery.eq("status", statusFilter);
+      }
+    }
+
+    // Add date filter if specified
+    if (dateFilter) {
+      const today = new Date().toISOString().split("T")[0];
+
+      if (dateFilter === "today") {
+        // For today's events - exact match on date
+        countQuery = countQuery.eq("event_date", today);
+        logger.info(`Bugünkü etkinlikler filtreleniyor: ${today}`);
+      } else if (dateFilter === "upcoming") {
+        // For upcoming events (future dates) - greater than today
+        countQuery = countQuery.gt("event_date", today);
+        logger.info(`Gelecek etkinlikler filtreleniyor: > ${today}`);
+      }
+    }
+
+    // Get total count first
+    const { count, error: countError } = await countQuery;
+
+    if (countError) {
+      logger.error(
+        `Etkinlik sayısı alınırken hata: ${countError.message}`,
+        countError
+      );
+      throw new Error("Etkinlikler sayılamadı");
+    }
+
+    // Create query builder for data
     let query = supabaseAdmin.from("Events").select(`
         *,
         sport:Sports!Events_sport_id_fkey(*),
@@ -622,8 +732,36 @@ export const getAllEvents = async (statusFilter?: string | string[]) => {
       }
     }
 
-    // Sort by event date, ascending
-    query = query.order("event_date", { ascending: true });
+    // Add date filter if specified
+    if (dateFilter) {
+      const today = new Date().toISOString().split("T")[0];
+
+      if (dateFilter === "today") {
+        // For today's events - exact match on date
+        query = query.eq("event_date", today);
+        logger.info(`Bugünkü etkinlikler filtreleniyor: ${today}`);
+      } else if (dateFilter === "upcoming") {
+        // For upcoming events (future dates) - greater than today
+        query = query.gt("event_date", today);
+        logger.info(`Gelecek etkinlikler filtreleniyor: > ${today}`);
+      }
+    }
+
+    // Apply pagination
+    const from = (page - 1) * pageSize;
+    const to = page * pageSize - 1;
+    query = query.range(from, to);
+
+    // Apply sorting - for date filtering, override to sort by event_date
+    if (dateFilter === "today" || dateFilter === "upcoming") {
+      // When filtering by date, sort by event_date and then start_time for better UX
+      query = query
+        .order("event_date", { ascending: true })
+        .order("start_time", { ascending: true });
+    } else {
+      // Otherwise use the requested sort
+      query = query.order(sortBy, { ascending: sortOrder === "asc" });
+    }
 
     // Execute the query
     const { data, error } = await query;
@@ -633,8 +771,13 @@ export const getAllEvents = async (statusFilter?: string | string[]) => {
       throw new Error("Etkinlikler getirilemedi");
     }
 
-    logger.info(`${data.length} etkinlik bulundu`);
-    return data.map((event) => formatEvent(event));
+    logger.info(`${data.length} etkinlik bulundu (toplam: ${count})`);
+
+    // Return both events and total count
+    return {
+      events: data.map((event) => formatEvent(event)),
+      totalCount: count || 0,
+    };
   } catch (error) {
     logger.error("getAllEvents hatası:", error);
     throw error;

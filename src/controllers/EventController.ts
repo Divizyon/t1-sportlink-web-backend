@@ -212,6 +212,18 @@ export const createEvent = async (req: Request, res: Response) => {
         });
       }
 
+      // Tarih validasyonu - Geçmiş tarihli etkinlik oluşturmayı engelle
+      const now = new Date();
+      const eventDateTime = new Date(start_time);
+
+      if (eventDateTime < now) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Geçmiş bir tarihe etkinlik oluşturulamaz. Lütfen gelecek bir tarih seçin.",
+        });
+      }
+
       // Tarih tiplerini kontrol et
       try {
         logger.info("Tarih formatları:", {
@@ -290,7 +302,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
         throw serviceError;
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error(
         `Etkinlik oluşturma hatası: ${
           error instanceof Error ? error.message : "Bilinmeyen hata"
@@ -308,26 +320,33 @@ export const createEvent = async (req: Request, res: Response) => {
         });
       }
 
-      if (error.message && error.message.includes("validation")) {
-        return res.status(400).json({
-          status: "error",
-          message: error.message,
-        });
-      }
+      // Type guard for Error objects
+      if (error instanceof Error) {
+        // Handle validation error messages
+        if (error.message.includes("validation")) {
+          return res.status(400).json({
+            status: "error",
+            message: error.message,
+          });
+        }
 
-      if (error.message && error.message.includes("Geçersiz veri türü")) {
-        return res.status(400).json({
-          status: "error",
-          message:
-            "Veri tipleri geçersiz. Lütfen girdiğiniz değerleri kontrol edin.",
-        });
-      }
+        // Handle data type errors
+        if (error.message.includes("Geçersiz veri türü")) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "Veri tipleri geçersiz. Lütfen girdiğiniz değerleri kontrol edin.",
+          });
+        }
 
-      if (error.message && error.message.includes("Geçersiz ilişki")) {
-        return res.status(400).json({
-          status: "error",
-          message: "Girdiğiniz sport_id veya diğer ilişkisel alanlar geçersiz.",
-        });
+        // Handle relationship errors
+        if (error.message.includes("Geçersiz ilişki")) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "Girdiğiniz sport_id veya diğer ilişkisel alanlar geçersiz.",
+          });
+        }
       }
 
       throw error;
@@ -367,15 +386,48 @@ export const getAllEvents = async (req: Request, res: Response) => {
       console.log(`Etkinlikler filtreleniyor: status=${statusFilter}`);
     }
 
-    // Etkinlikleri getir
-    const events = await eventService.getAllEvents(statusFilter);
+    // Extract pagination parameters
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = req.query.limit
+      ? parseInt(req.query.limit as string, 10)
+      : 10;
 
-    console.log(`${events.length} etkinlik bulundu`);
+    // Extract sorting parameters
+    const sortBy = (req.query.sort_by as string) || "created_at";
+    const sortOrder = (req.query.sort_order as "asc" | "desc") || "desc";
+
+    // Extract date filter parameter
+    const dateFilter = req.query.date_filter as
+      | "today"
+      | "upcoming"
+      | undefined;
+
+    if (dateFilter) {
+      console.log(`Tarih filtreleniyor: ${dateFilter}`);
+    }
+
+    // Etkinlikleri getir with pagination
+    const result = await eventService.getAllEvents(
+      statusFilter,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      dateFilter
+    );
+
+    console.log(
+      `${result.events.length} etkinlik bulundu (toplam: ${result.totalCount})`
+    );
 
     res.status(200).json({
       status: "success",
       data: {
-        events,
+        events: result.events,
+        total: result.totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(result.totalCount / limit),
       },
     });
   } catch (error) {
