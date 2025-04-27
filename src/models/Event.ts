@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * @swagger
@@ -245,57 +245,80 @@ import { z } from 'zod';
  */
 
 export const EventStatus = {
-  PENDING: 'PENDING',
-  ACTIVE: 'ACTIVE',
-  REJECTED: 'REJECTED',
-  CANCELLED: 'CANCELLED',
-  COMPLETED: 'COMPLETED'
+  PENDING: "PENDING",
+  ACTIVE: "ACTIVE",
+  REJECTED: "REJECTED",
+  CANCELLED: "CANCELLED",
+  COMPLETED: "COMPLETED",
 } as const;
 
-export type EventStatus = typeof EventStatus[keyof typeof EventStatus];
+export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
 
 export const EventParticipantRole = {
-  PARTICIPANT: 'PARTICIPANT',
-  ORGANIZER: 'ORGANIZER'
+  PARTICIPANT: "PARTICIPANT",
+  ORGANIZER: "ORGANIZER",
 } as const;
 
-export type EventParticipantRole = typeof EventParticipantRole[keyof typeof EventParticipantRole];
+export type EventParticipantRole =
+  (typeof EventParticipantRole)[keyof typeof EventParticipantRole];
 
 // Zod şemaları ile validasyon
-export const EventValidationSchema = z.object({
-  id: z.string().or(z.number()),
-  creator_id: z.string().uuid(),
-  sport_id: z.string().uuid().or(z.number()),
-  title: z.string().min(3).max(100),
-  description: z.string().max(1000),
-  event_date: z.string().or(z.coerce.date()),
-  start_time: z.string().or(z.coerce.date()),
-  end_time: z.string().or(z.coerce.date()),
-  location_name: z.string().max(200),
-  location_latitude: z.number().min(-90).max(90),
-  location_longitude: z.number().min(-180).max(180),
-  max_participants: z.number().int().min(2).max(1000),
-  status: z.enum([EventStatus.PENDING, EventStatus.ACTIVE, EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED]),
-  created_at: z.string().or(z.coerce.date()),
-  updated_at: z.string().or(z.coerce.date()),
-  sport: z.optional(z.object({
-    id: z.number(),
-    icon: z.string(),
-    name: z.string(),
-    description: z.string()
-  })),
-  sport_category: z.optional(z.string())
-}).refine(
-  (data) => {
-    const endTime = typeof data.end_time === 'string' ? new Date(data.end_time) : data.end_time;
-    const startTime = typeof data.start_time === 'string' ? new Date(data.start_time) : data.start_time;
-    return endTime > startTime;
-  },
-  { message: "Bitiş zamanı başlangıç zamanından sonra olmalıdır" }
-);
+export const EventValidationSchema = z
+  .object({
+    id: z.string().or(z.number()),
+    creator_id: z.string().uuid(),
+    sport_id: z.string().uuid().or(z.number()),
+    title: z.string().min(3).max(100),
+    description: z.string().max(1000),
+    event_date: z.string().or(z.coerce.date()),
+    start_time: z.string().or(z.coerce.date()),
+    end_time: z.string().or(z.coerce.date()),
+    location_name: z.string().max(200),
+    location_latitude: z.number().min(-90).max(90),
+    location_longitude: z.number().min(-180).max(180),
+    max_participants: z.number().int().min(2).max(1000),
+    status: z.enum([
+      EventStatus.PENDING,
+      EventStatus.ACTIVE,
+      EventStatus.REJECTED,
+      EventStatus.CANCELLED,
+      EventStatus.COMPLETED,
+    ]),
+    created_at: z.string().or(z.coerce.date()),
+    updated_at: z.string().or(z.coerce.date()),
+    sport: z.optional(
+      z.object({
+        id: z.number(),
+        icon: z.string(),
+        name: z.string(),
+        description: z.string(),
+      })
+    ),
+    sport_category: z.optional(z.string()),
+  })
+  .refine(
+    (data) => {
+      const endTime =
+        typeof data.end_time === "string"
+          ? new Date(data.end_time)
+          : data.end_time;
+      const startTime =
+        typeof data.start_time === "string"
+          ? new Date(data.start_time)
+          : data.start_time;
+      return endTime > startTime;
+    },
+    { message: "Bitiş zamanı başlangıç zamanından sonra olmalıdır" }
+  );
 
 export const UpdateEventStatusSchema = z.object({
-  status: z.enum([EventStatus.PENDING, EventStatus.ACTIVE, EventStatus.REJECTED, EventStatus.CANCELLED, EventStatus.COMPLETED])
+  status: z.enum([
+    EventStatus.PENDING,
+    EventStatus.ACTIVE,
+    EventStatus.REJECTED,
+    EventStatus.CANCELLED,
+    EventStatus.COMPLETED,
+  ]),
 });
 
 export type Event = z.infer<typeof EventValidationSchema>;
@@ -331,28 +354,28 @@ export interface EventReport {
 export class EventValidationError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'EventValidationError';
+    this.name = "EventValidationError";
   }
 }
 
 export class EventNotFoundError extends Error {
   constructor(eventId: string) {
     super(`Etkinlik bulunamadı: ${eventId}`);
-    this.name = 'EventNotFoundError';
+    this.name = "EventNotFoundError";
   }
 }
 
 export class EventPermissionError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'EventPermissionError';
+    this.name = "EventPermissionError";
   }
 }
 
 export class EventStatusError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'EventStatusError';
+    this.name = "EventStatusError";
   }
 }
 
@@ -371,4 +394,4 @@ export interface TodayEvent {
   organizer: string;
   image: string | null;
   isAttending: boolean;
-} 
+}

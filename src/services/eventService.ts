@@ -390,6 +390,141 @@ export const markExpiredEventsAsCompleted = async (): Promise<void> => {
 };
 
 /**
+ * Marks pending events as rejected if:
+ * 1. Their start time has already passed OR
+ * 2. They're less than 30 minutes from starting and still pending
+ */
+export const markExpiredPendingEvents = async (): Promise<void> => {
+  try {
+    const now = new Date();
+    logger.info(
+      `Başlangıç zamanı yaklaşan/geçen onay bekleyen etkinliklerin işlenmesi başladı. Şu anki zaman: ${now.toISOString()}`
+    );
+
+    // Calculate the timestamp for 30 minutes from now
+    const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+    logger.info(`30 dakika sonrası: ${thirtyMinutesFromNow.toISOString()}`);
+
+    // First, let's log all pending events to diagnose the issue
+    const { data: allPendingEvents, error: allPendingError } =
+      await supabaseAdmin
+        .from("Events")
+        .select("id, title, start_time, event_date, creator_id, status")
+        .eq("status", EventStatus.PENDING);
+
+    if (allPendingError) {
+      logger.error("Tüm bekleyen etkinlikleri alma hatası:", allPendingError);
+    } else {
+      logger.info(
+        `Toplam ${allPendingEvents?.length || 0} bekleyen etkinlik bulundu`
+      );
+
+      if (allPendingEvents && allPendingEvents.length > 0) {
+        allPendingEvents.forEach((event) => {
+          // For debugging, let's output all pending events
+          const startTime = new Date(event.start_time);
+
+          // Fix time zone issues by using time difference in milliseconds
+          const timeUntilStart = startTime.getTime() - now.getTime();
+          const minutesUntilStart = Math.floor(timeUntilStart / (60 * 1000));
+
+          logger.info(
+            `Bekleyen etkinlik: ID=${event.id}, Başlık="${event.title}", ` +
+              `Başlangıç=${event.start_time}, Tarih=${event.event_date}, ` +
+              `Kalan süre=${minutesUntilStart} dakika, ` +
+              `Timeout olmalı mı? ${minutesUntilStart <= 30 ? "EVET" : "HAYIR"}`
+          );
+        });
+      }
+    }
+
+    // Find pending events whose start time has passed OR is within 30 minutes
+    // Use clear timestamps for the query
+    const { data: expiredEvents, error: findError } = await supabaseAdmin
+      .from("Events")
+      .select("id, title, start_time, creator_id")
+      .eq("status", EventStatus.PENDING)
+      .lt("start_time", thirtyMinutesFromNow.toISOString());
+
+    if (findError) {
+      logger.error(
+        "Zamanı geçmiş/yaklaşan bekleyen etkinlikleri bulma hatası:",
+        findError
+      );
+      throw new Error("Zamanı geçmiş bekleyen etkinlikler bulunamadı.");
+    }
+
+    logger.info(
+      `${
+        expiredEvents?.length || 0
+      } adet zamanı geçmiş veya 30 dakika içinde başlayacak bekleyen etkinlik bulundu.`
+    );
+
+    if (expiredEvents && expiredEvents.length > 0) {
+      // Log details about expired events
+      expiredEvents.forEach((event) => {
+        const startTime = new Date(event.start_time);
+
+        // Fix time zone issues by using time difference in milliseconds
+        const timeUntilStart = startTime.getTime() - now.getTime();
+        const minutesUntilStart = Math.floor(timeUntilStart / (60 * 1000));
+        const isPast = minutesUntilStart < 0;
+
+        logger.info(
+          `${isPast ? "Zamanı geçmiş" : "Zamanı yaklaşan"} etkinlik: ` +
+            `ID=${event.id}, Başlık="${event.title}", ` +
+            `Başlangıç=${event.start_time}, ` +
+            `Kalan süre=${
+              isPast ? "Geçmiş" : minutesUntilStart + " dakika"
+            }, ` +
+            `Oluşturan=${event.creator_id}`
+        );
+      });
+
+      // Only mark events as rejected if they are actually found
+      // and if they are actually within 30 minutes or past
+      if (expiredEvents.length > 0) {
+        // Mark them as rejected
+        const { error } = await supabaseAdmin
+          .from("Events")
+          .update({
+            status: EventStatus.REJECTED, // Mark as rejected since we don't have a TIMEOUT status
+            updated_at: now.toISOString(),
+          })
+          .eq("status", EventStatus.PENDING)
+          .lt("start_time", thirtyMinutesFromNow.toISOString());
+
+        if (error) {
+          logger.error(
+            "Zamanı geçmiş/yaklaşan bekleyen etkinlikleri işaretleme hatası:",
+            error
+          );
+          throw new Error(
+            "Zamanı geçmiş bekleyen etkinlikler reddedildi olarak işaretlenirken bir hata oluştu."
+          );
+        }
+
+        logger.info(
+          `${expiredEvents.length} adet zamanı geçmiş veya yaklaşan bekleyen etkinlik başarıyla reddedildi olarak işaretlendi`
+        );
+      } else {
+        logger.info("İşlem yapılacak etkinlik bulunamadı");
+      }
+    } else {
+      logger.info(
+        "İşlem yapılacak zamanı geçmiş veya yaklaşan bekleyen etkinlik bulunamadı"
+      );
+    }
+  } catch (error) {
+    logger.error(
+      "Zamanı geçmiş bekleyen etkinlikleri işaretleme hatası:",
+      error
+    );
+    throw error;
+  }
+};
+
+/**
  * Validates that an event's date is not in the past
  * @param eventDate The event date string in ISO format
  * @param startTime The event start time string (HH:MM format)
@@ -402,21 +537,59 @@ export const validateEventDate = (
   try {
     logger.info(`Validating event date: ${eventDate} ${startTime}`);
 
-    // Parse the event date and time
-    const dateObj = parseISO(eventDate);
-    const [hours, minutes] = startTime.split(":").map(Number);
-
-    // Create full event datetime
-    const eventDateTime = new Date(dateObj);
-    eventDateTime.setHours(hours, minutes, 0, 0);
-
     // Get current time
     const now = new Date();
+    let eventDateTime: Date;
+
+    // Handle different date and time formats
+    if (startTime.includes("T") && startTime.includes("Z")) {
+      // If startTime is already a full ISO string, use it directly
+      logger.info(`Using full ISO startTime: ${startTime}`);
+      eventDateTime = new Date(startTime);
+    } else if (eventDate.includes("T")) {
+      // If eventDate is a full ISO string, parse it
+      logger.info(`Parsing ISO format date: ${eventDate}`);
+      const dateObj = parseISO(eventDate);
+
+      // Extract hours and minutes from startTime if it's in HH:MM format
+      if (startTime.includes(":")) {
+        const [hours, minutes] = startTime.split(":").map(Number);
+        eventDateTime = new Date(dateObj);
+        eventDateTime.setHours(hours, minutes, 0, 0);
+      } else {
+        // Fallback if startTime is not in expected format
+        eventDateTime = new Date(dateObj);
+      }
+    } else {
+      // Simple YYYY-MM-DD format for eventDate
+      logger.info(`Parsing simple date format: ${eventDate}`);
+
+      if (startTime.includes("T")) {
+        // If startTime is an ISO string, use it for time part
+        eventDateTime = new Date(startTime);
+        // Keep only date part from eventDate
+        const [year, month, day] = eventDate.split("-").map(Number);
+        eventDateTime.setFullYear(year);
+        eventDateTime.setMonth(month - 1); // Month is 0-indexed in JS
+        eventDateTime.setDate(day);
+      } else {
+        // Build date from components
+        const [year, month, day] = eventDate.split("-").map(Number);
+        const [hours, minutes] = startTime.split(":").map(Number);
+
+        eventDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      }
+    }
+
+    logger.info(
+      `Parsed event datetime: ${eventDateTime.toISOString()}, current time: ${now.toISOString()}`
+    );
 
     // Check if event is in the past
-    if (isBefore(eventDateTime, now)) {
+    if (eventDateTime < now) {
       logger.warn(
-        `Invalid event date: ${eventDate} ${startTime} is in the past`
+        `Invalid event date: ${eventDate} ${startTime} is in the past. ` +
+          `Parsed as ${eventDateTime.toISOString()}, now is ${now.toISOString()}`
       );
       return {
         isValid: false,
@@ -425,7 +598,7 @@ export const validateEventDate = (
     }
 
     logger.info(
-      `Event date validation successful for: ${eventDate} ${startTime}`
+      `Event date validation successful for: ${eventDate} ${startTime} -> ${eventDateTime.toISOString()}`
     );
     return { isValid: true, message: "" };
   } catch (error) {
@@ -676,11 +849,14 @@ export const getAllEvents = async (
 
     // Add date filter if specified
     if (dateFilter) {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD format for the current local date
+      const now = new Date();
+      logger.info(`Current date for filtering: ${today}`);
 
       if (dateFilter === "today") {
-        // For today's events - exact match on date
+        // For today's events - match today's date and ensure start time is in the future
         countQuery = countQuery.eq("event_date", today);
+        // We can't combine with time filtering in the count query, so we'll just count all events for today
         logger.info(`Bugünkü etkinlikler filtreleniyor: ${today}`);
       } else if (dateFilter === "upcoming") {
         // For upcoming events (future dates) - greater than today
@@ -734,12 +910,17 @@ export const getAllEvents = async (
 
     // Add date filter if specified
     if (dateFilter) {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD format for the current local date
+      const now = new Date();
 
       if (dateFilter === "today") {
-        // For today's events - exact match on date
-        query = query.eq("event_date", today);
-        logger.info(`Bugünkü etkinlikler filtreleniyor: ${today}`);
+        // For today's events - match today's date AND ensure start time is still in the future
+        query = query
+          .eq("event_date", today)
+          .gte("start_time", now.toISOString());
+        logger.info(
+          `Bugünkü etkinlikler filtreleniyor: ${today} ve start_time >= ${now.toISOString()}`
+        );
       } else if (dateFilter === "upcoming") {
         // For upcoming events (future dates) - greater than today
         query = query.gt("event_date", today);
@@ -790,17 +971,13 @@ export const getAllEvents = async (
  */
 export const getTodayEvents = async (userId?: string): Promise<any[]> => {
   try {
-    // Bugünün başlangıç ve bitiş zamanlarını al
-    const today = new Date();
-    const startOfToday = startOfDay(today);
-    const endOfToday = endOfDay(today);
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toLocaleDateString("en-CA");
+    const now = new Date();
 
-    logger.info("Bugünün etkinlikleri alınıyor", {
-      startOfToday: startOfToday.toISOString(),
-      endOfToday: endOfToday.toISOString(),
-    });
+    logger.info(`Getting today's events for date: ${today}`);
 
-    // Bugünün etkinliklerini getir - tüm ilişkileri spesifik olarak belirt
+    // Fetch today's events using the exact date match
     const { data: events, error } = await supabaseAdmin
       .from("Events")
       .select(
@@ -816,9 +993,9 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
         participants:Event_Participants(count)
       `
       )
-      .gte("event_date", startOfToday.toISOString())
-      .lte("event_date", endOfToday.toISOString())
-      .eq("status", EventStatus.ACTIVE);
+      .eq("event_date", today)
+      .eq("status", EventStatus.ACTIVE)
+      .gte("start_time", now.toISOString()); // Only show events that haven't started yet
 
     if (error) {
       logger.error("Bugünün etkinlikleri alınırken hata oluştu:", error);
