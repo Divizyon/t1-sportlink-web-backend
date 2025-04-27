@@ -31,6 +31,116 @@ export const setupSwagger = (app: express.Application): void => {
           description: 'SportLink API Sunucusu',
         },
       ],
+      tags: [
+        { name: 'Auth', description: 'Authentication operations' },
+        { name: 'Events', description: 'Etkinlik yönetimi' },
+        { name: 'Profile', description: 'User profile management' },
+        { name: 'Reports', description: 'Rapor yönetimi' },
+        { name: 'Users', description: 'User management operations' },
+        { name: 'Security', description: 'Security logs' },
+        { name: 'Sports', description: 'Spor yönetimi' },
+        { name: 'Stats', description: 'İstatistik ve dashboard verileri' },
+      ],
+      paths: {
+        '/api/stats/weekly': {
+          get: {
+            tags: ['Stats'],
+            summary: 'Haftalık istatistikleri getirir',
+            description: 'Son 7 gün için günlük etkinlik ve katılımcı sayılarını ve genel özeti döndürür.',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Haftalık istatistikler başarıyla alındı',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/WeeklyStatsResponse'
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/stats/categories': {
+          get: {
+            tags: ['Stats'],
+            summary: 'Kategoriye göre katılımcı dağılımını getirir',
+            description: 'Her spor kategorisindeki etkinliklere katılan benzersiz kullanıcı sayısını döndürür.',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Kategori dağılımı başarıyla alındı',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/CategoryDistributionItem'
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/stats/monthly': {
+          get: {
+            tags: ['Stats'],
+            summary: 'Aylık etkinlik istatistiklerini getirir',
+            description: 'Her ay için etkinlikleri durumlarına göre sayarak döndürür.',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Aylık istatistikler başarıyla alındı',
+                content: {
+                  'application/json': {
+                    schema: {
+                       type: 'array',
+                       items: {
+                         $ref: '#/components/schemas/MonthlyStatsItem'
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/stats/users/categories': {
+          get: {
+            tags: ['Stats'],
+            summary: 'Kategoriye göre kullanıcı büyümesini getirir',
+            description: 'Her spor kategorisi için toplam kullanıcı sayısını ve son 30 gündeki artışı döndürür.',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Kullanıcı kategori büyümesi başarıyla alındı',
+                content: {
+                  'application/json': {
+                    schema: {
+                       $ref: '#/components/schemas/UserCategoryGrowthResponse'
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+      },
       components: {
         securitySchemes: {
           bearerAuth: {
@@ -99,7 +209,6 @@ export const setupSwagger = (app: express.Application): void => {
           },
         },
         schemas: {
-          // Rapor modeli
           Report: {
             type: 'object',
             required: ['id', 'konu', 'raporlayan', 'tarih', 'tur', 'oncelik', 'durum'],
@@ -137,7 +246,6 @@ export const setupSwagger = (app: express.Application): void => {
               }
             }
           },
-          // Rapor veri formatı (Dashboard)
           ReportData: {
             type: 'object',
             required: ['id', 'subject', 'description', 'reportedBy', 'reportedDate', 'priority', 'status', 'entityId', 'entityType'],
@@ -184,7 +292,6 @@ export const setupSwagger = (app: express.Application): void => {
               }
             }
           },
-          // Kullanıcı modeli
           User: {
             type: 'object',
             required: ['id', 'email', 'first_name', 'last_name', 'role'],
@@ -233,7 +340,6 @@ export const setupSwagger = (app: express.Application): void => {
               updated_at: '2023-01-01T00:00:00.000Z',
             },
           },
-          // Kullanıcı oluşturma şeması
           CreateUserDTO: {
             type: 'object',
             required: ['email', 'password', 'first_name', 'last_name'],
@@ -271,7 +377,6 @@ export const setupSwagger = (app: express.Application): void => {
               last_name: 'Doe',
             },
           },
-          // Kullanıcı Detay modeli (Frontend için)
           UserDetail: {
             type: 'object',
             required: ['id', 'name', 'email', 'role', 'status', 'joinDate'],
@@ -329,7 +434,6 @@ export const setupSwagger = (app: express.Application): void => {
               lastActive: "2023-07-15"
             },
           },
-          // Giriş DTO şeması
           LoginDTO: {
             type: 'object',
             required: ['email', 'password'],
@@ -350,7 +454,6 @@ export const setupSwagger = (app: express.Application): void => {
               password: 'password123',
             },
           },
-          // Şifre sıfırlama şeması
           ResetPasswordDTO: {
             type: 'object',
             required: ['email'],
@@ -365,7 +468,6 @@ export const setupSwagger = (app: express.Application): void => {
               email: 'user@example.com',
             },
           },
-          // Kimlik doğrulama yanıt şeması
           AuthResponse: {
             type: 'object',
             properties: {
@@ -397,7 +499,6 @@ export const setupSwagger = (app: express.Application): void => {
               },
             },
           },
-          // Başarılı yanıt şeması
           SuccessResponse: {
             type: 'object',
             properties: {
@@ -416,7 +517,6 @@ export const setupSwagger = (app: express.Application): void => {
               message: 'İşlem başarıyla tamamlandı',
             },
           },
-          // Hata yanıt şeması
           Error: {
             type: 'object',
             properties: {
@@ -435,7 +535,6 @@ export const setupSwagger = (app: express.Application): void => {
               message: 'Bir hata oluştu',
             },
           },
-          // Event model
           Event: {
             type: 'object',
             required: [
@@ -538,8 +637,6 @@ export const setupSwagger = (app: express.Application): void => {
               }
             }
           },
-          
-          // EventParticipant model
           EventParticipant: {
             type: 'object',
             required: [
@@ -577,8 +674,6 @@ export const setupSwagger = (app: express.Application): void => {
               }
             }
           },
-          
-          // TodayEvent model (Frontend formatı)
           TodayEvent: {
             type: 'object',
             properties: {
@@ -640,6 +735,66 @@ export const setupSwagger = (app: express.Application): void => {
               }
             }
           },
+          DailyStat: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', format: 'date', description: 'Tarih (YYYY-MM-DD)' },
+              events: { type: 'integer', description: 'O günkü etkinlik sayısı' },
+              participants: { type: 'integer', description: 'O günkü katılımcı sayısı' }
+            }
+          },
+          WeeklyStatsResponse: {
+            type: 'object',
+            properties: {
+              summary: {
+                type: 'object',
+                properties: {
+                  total_events: { type: 'integer', description: 'Haftalık toplam etkinlik' },
+                  total_participants: { type: 'integer', description: 'Haftalık toplam katılımcı' }
+                }
+              },
+              daily: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/DailyStat' },
+                description: 'Son 7 günün günlük dökümü'
+              }
+            }
+          },
+          CategoryDistributionItem: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Spor kategorisi adı' },
+              count: { type: 'integer', description: 'Bu kategorideki benzersiz katılımcı sayısı' }
+            }
+          },
+          MonthlyStatsItem: {
+            type: 'object',
+            properties: {
+               month: { type: 'string', description: 'Ay (YYYY-MM)' },
+               onaylanan: { type: 'integer', description: 'Onaylanmış (Aktif) etkinlik sayısı' },
+               bekleyen: { type: 'integer', description: 'Bekleyen etkinlik sayısı' },
+               iptal_edilen: { type: 'integer', description: 'İptal edilmiş etkinlik sayısı' },
+               tamamlanan: { type: 'integer', description: 'Tamamlanmış etkinlik sayısı' }
+            }
+          },
+          UserCategoryGrowthItem: {
+             type: 'object',
+             properties: {
+               name: { type: 'string', description: 'Spor kategorisi adı' },
+               users: { type: 'integer', description: 'Bu kategoriyi favorileyen toplam kullanıcı sayısı' },
+               change: { type: 'integer', description: 'Son 30 günde favorileyen yeni kullanıcı sayısı' }
+             }
+          },
+          UserCategoryGrowthResponse: {
+             type: 'object',
+             properties: {
+                categories: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/UserCategoryGrowthItem' }
+                },
+                period: { type: 'integer', description: 'Değişimin hesaplandığı gün sayısı', example: 30 }
+             }
+          }
         },
       },
     },
