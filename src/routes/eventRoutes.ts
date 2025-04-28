@@ -47,6 +47,50 @@ router.get("/today", optionalAuth, EventController.getTodayEvents);
 
 /**
  * @swagger
+ * /api/events/counts:
+ *   get:
+ *     summary: Tüm etkinlik sayılarını tek seferde getir
+ *     description: Farklı durumlardaki (pending, active, today, upcoming, rejected, completed) etkinliklerin sayılarını tek bir API çağrısında döndürür
+ *     tags: [Events]
+ *     responses:
+ *       200:
+ *         description: Etkinlik sayıları başarıyla getirildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     pending:
+ *                       type: integer
+ *                       example: 5
+ *                     today:
+ *                       type: integer
+ *                       example: 3
+ *                     upcoming:
+ *                       type: integer
+ *                       example: 12
+ *                     rejected:
+ *                       type: integer
+ *                       example: 2
+ *                     completed:
+ *                       type: integer
+ *                       example: 8
+ *                     all:
+ *                       type: integer
+ *                       example: 30
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get("/counts", EventController.getEventCounts);
+
+/**
+ * @swagger
  * /api/events:
  *   get:
  *     summary: Tüm etkinlikleri getir

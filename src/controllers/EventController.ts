@@ -665,3 +665,24 @@ export const deleteEvent = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getEventCounts = async (req: Request, res: Response) => {
+  try {
+    logger.info("Etkinlik sayıları isteği alındı");
+
+    // Call our service function to get all counts in one query
+    const counts = await eventService.getEventCountsByStatus();
+
+    // Return the counts as JSON
+    return res.status(200).json({
+      status: "success",
+      data: counts,
+    });
+  } catch (error) {
+    logger.error("Etkinlik sayıları alınırken hata:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Etkinlik sayıları alınırken bir hata oluştu",
+    });
+  }
+};

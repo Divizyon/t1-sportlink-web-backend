@@ -854,9 +854,8 @@ export const getAllEvents = async (
       logger.info(`Current date for filtering: ${today}`);
 
       if (dateFilter === "today") {
-        // For today's events - match today's date and ensure start time is in the future
+        // For today's events - match today's date
         countQuery = countQuery.eq("event_date", today);
-        // We can't combine with time filtering in the count query, so we'll just count all events for today
         logger.info(`Bugünkü etkinlikler filtreleniyor: ${today}`);
       } else if (dateFilter === "upcoming") {
         // For upcoming events (future dates) - greater than today
@@ -914,12 +913,10 @@ export const getAllEvents = async (
       const now = new Date();
 
       if (dateFilter === "today") {
-        // For today's events - match today's date AND ensure start time is still in the future
-        query = query
-          .eq("event_date", today)
-          .gte("start_time", now.toISOString());
+        // For today's events - match today's date
+        query = query.eq("event_date", today);
         logger.info(
-          `Bugünkü etkinlikler filtreleniyor: ${today} ve start_time >= ${now.toISOString()}`
+          `Bugünkü etkinlikler filtreleniyor: ${today} (tüm saatler dahil)`
         );
       } else if (dateFilter === "upcoming") {
         // For upcoming events (future dates) - greater than today
@@ -994,8 +991,7 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       `
       )
       .eq("event_date", today)
-      .eq("status", EventStatus.ACTIVE)
-      .gte("start_time", now.toISOString()); // Only show events that haven't started yet
+      .eq("status", EventStatus.ACTIVE);
 
     if (error) {
       logger.error("Bugünün etkinlikleri alınırken hata oluştu:", error);
@@ -1236,12 +1232,10 @@ export const deleteEvent = async (
           `Etkinlik raporlarını silme hatası: ${reportsError.message}`
         );
       }
-    } catch (reportsError) {
+    } catch (reportsError: any) {
       logger.warn(
         `Etkinlik raporlarını silme hatası: ${
-          reportsError instanceof Error
-            ? reportsError.message
-            : "Bilinmeyen hata"
+          reportsError?.message || "Bilinmeyen hata"
         }`
       );
     }
@@ -1258,116 +1252,107 @@ export const deleteEvent = async (
     }
 
     logger.info(`Etkinlik başarıyla silindi: ${eventId}`);
-    return {
-      success: true,
-      message: "Etkinlik başarıyla silindi.",
-    };
+    return { success: true, message: "Etkinlik başarıyla silindi" };
   } catch (error) {
     logger.error(
       `deleteEvent hatası: ${
         error instanceof Error ? error.message : "Bilinmeyen hata"
-      }`,
-      {
-        stack: error instanceof Error ? error.stack : "Stack yok",
-      }
+      }`
+    );
+    logger.error(
+      `Hata stack: ${error instanceof Error ? error.stack : "Stack yok"}`
     );
     throw error;
   }
 };
 
-export const getEventDetails = async (eventId: string) => {
+/**
+ * Etkinliklerin durumlarına göre sayılarını getirir
+ * @returns Tüm durumlar için etkinlik sayıları
+ */
+export const getEventCountsByStatus = async (): Promise<{
+  pending: number;
+  today: number;
+  upcoming: number;
+  rejected: number;
+  completed: number;
+  all: number;
+}> => {
   try {
-    const { data: event, error } = await supabase
-      .from("Events")
-      .select(
-        `
-        *,
-        creator:users!creator_id (
-          first_name,
-          last_name,
-          role
-        ),
-        participants:Event_Participants (count)
-      `
-      )
-      .eq("id", eventId)
-      .single();
+    logger.info("Tüm etkinlik sayıları getiriliyor");
 
-    if (error) {
-      logger.error("Etkinlik detayları alınırken hata:", error);
-      throw error;
-    }
+    // Get today's date for filtering
+    const today = new Date();
+    const formattedToday = format(today, "yyyy-MM-dd");
 
-    // Katılımcı sayısını ve doluluk durumunu kontrol et
-    const currentParticipants = event.participants[0].count;
-    const isFull = currentParticipants >= event.max_participants;
+    // Single query to get all counts by status
+    // We'll use Promise.all to run these in parallel
+    const [
+      pendingCount,
+      rejectedCount,
+      completedCount,
+      todayActiveEvents,
+      upcomingActiveEvents,
+    ] = await Promise.all([
+      // Count PENDING events
+      supabaseAdmin
+        .from("Events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "PENDING"),
+
+      // Count REJECTED events
+      supabaseAdmin
+        .from("Events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "REJECTED"),
+
+      // Count COMPLETED events
+      supabaseAdmin
+        .from("Events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "COMPLETED"),
+
+      // Get TODAY's ACTIVE events using direct query
+      supabaseAdmin
+        .from("Events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "ACTIVE")
+        .eq("event_date", formattedToday),
+
+      // Get UPCOMING ACTIVE events using direct query
+      supabaseAdmin
+        .from("Events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "ACTIVE")
+        .gt("event_date", formattedToday),
+    ]);
+
+    // Calculate total (all events)
+    const totalCount =
+      (pendingCount.count || 0) +
+      (rejectedCount.count || 0) +
+      (completedCount.count || 0) +
+      (todayActiveEvents.count || 0) +
+      (upcomingActiveEvents.count || 0);
+
+    logger.info("Etkinlik sayıları:");
+    logger.info(`Pending: ${pendingCount.count || 0}`);
+    logger.info(`Today: ${todayActiveEvents.count || 0}`);
+    logger.info(`Upcoming: ${upcomingActiveEvents.count || 0}`);
+    logger.info(`Rejected: ${rejectedCount.count || 0}`);
+    logger.info(`Completed: ${completedCount.count || 0}`);
+    logger.info(`Total: ${totalCount}`);
 
     return {
-      ...event,
-      creator_name: `${event.creator.first_name} ${event.creator.last_name}`,
-      creator_role: event.creator.role,
-      current_participants: currentParticipants,
-      is_full: isFull,
+      pending: pendingCount.count || 0,
+      today: todayActiveEvents.count || 0,
+      upcoming: upcomingActiveEvents.count || 0,
+      rejected: rejectedCount.count || 0,
+      completed: completedCount.count || 0,
+      all: totalCount,
     };
   } catch (error) {
-    logger.error("Etkinlik detayları alınırken hata:", error);
-    throw error;
-  }
-};
-
-export const joinEvent = async (
-  eventId: string,
-  userId: string,
-  role: string = "PARTICIPANT"
-) => {
-  try {
-    // Önce etkinlik detaylarını ve katılımcı sayısını kontrol et
-    const { data: event, error: eventError } = await supabase
-      .from("Events")
-      .select(
-        `
-        max_participants,
-        participants:Event_Participants (count)
-      `
-      )
-      .eq("id", eventId)
-      .single();
-
-    if (eventError) {
-      logger.error("Etkinlik bilgileri alınırken hata:", eventError);
-      throw eventError;
-    }
-
-    // Katılımcı sayısını kontrol et
-    const currentParticipants = event.participants[0].count;
-    if (currentParticipants >= event.max_participants) {
-      logger.warn(
-        `Etkinlik dolu: eventId=${eventId}, maxParticipants=${event.max_participants}, currentParticipants=${currentParticipants}`
-      );
-      throw new Error("Bu etkinlik maksimum katılımcı sayısına ulaştı");
-    }
-
-    // Katılımcı ekle
-    const { error: participantError } = await supabase
-      .from("Event_Participants")
-      .insert({
-        event_id: eventId,
-        user_id: userId,
-        role: role,
-        created_at: new Date().toISOString(),
-      });
-
-    if (participantError) {
-      logger.error("Etkinliğe katılım eklenirken hata:", participantError);
-      throw participantError;
-    }
-
-    logger.info(
-      `Etkinliğe katılım başarılı: eventId=${eventId}, userId=${userId}, role=${role}`
-    );
-    return { success: true };
-  } catch (error) {
-    logger.error("Etkinliğe katılım sırasında hata:", error);
-    throw error;
+    logger.error("Error getting event counts:", error);
+    throw new Error("Etkinlik sayıları alınırken bir hata oluştu");
   }
 };
