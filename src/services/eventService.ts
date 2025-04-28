@@ -21,6 +21,7 @@ import {
 } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import logger from "../utils/logger";
+import { findUserById } from "../services/userService";
 
 const DEFAULT_TIMEZONE = "Europe/Istanbul";
 
@@ -309,13 +310,59 @@ export const updateEventStatus = async (
       throw new EventStatusError(message);
     }
 
-    // Optimistic locking için version kontrolü
+    // Prepare data for update, including approval/rejection timestamps
+    const updateData: any = {
+      status: status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (status === EventStatus.ACTIVE) {
+      // Check if it was PENDING before to set approved_at
+      // We might need to fetch the event again or trust the validation logic implicitly set the previous state
+      // Assuming the state transition PENDING -> ACTIVE implies approval
+      if (event.status === EventStatus.PENDING) {
+        updateData.approved_at = new Date();
+        logger.info(`Setting approved_at for event ${eventId}`);
+      }
+    } else if (status === EventStatus.REJECTED) {
+      updateData.rejected_at = new Date();
+      logger.info(`Setting rejected_at for event ${eventId}`);
+    }
+
+    // Special handling for date changes - need to sync with start/end times
+    if (event.event_date) {
+      // If date is changing but start_time not explicitly provided, we need to update it
+      if (!event.start_time) {
+        // Extract time part from existing start_time
+        const existingStartTime = event.start_time;
+        if (existingStartTime.includes("T")) {
+          const timePart = existingStartTime.split("T")[1];
+          // Create new start_time with updated date but same time
+          updateData.start_time = `${event.event_date}T${timePart}`;
+          logger.info(
+            `Auto-updating start_time to match new date: ${updateData.start_time}`
+          );
+        }
+      }
+
+      // Do the same for end_time
+      if (!event.end_time) {
+        const existingEndTime = event.end_time;
+        if (existingEndTime.includes("T")) {
+          const timePart = existingEndTime.split("T")[1];
+          // Create new end_time with updated date but same time
+          updateData.end_time = `${event.event_date}T${timePart}`;
+          logger.info(
+            `Auto-updating end_time to match new date: ${updateData.end_time}`
+          );
+        }
+      }
+    }
+
+    // Execute the update
     const { data, error } = await supabaseAdmin
       .from("Events")
-      .update({
-        status: status,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData) // Use the prepared updateData object
       .eq("id", eventId)
       .select(
         `
@@ -1048,28 +1095,80 @@ export const updateEvent = async (
       throw new EventStatusError("Tamamlanmış etkinlikler güncellenemez.");
     }
 
-    // Validasyon kontrolü: Başlangıç/bitiş zamanları
-    if (
-      (eventData.start_time && eventData.end_time) ||
-      (eventData.start_time && existingEvent.end_time) ||
-      (existingEvent.start_time && eventData.end_time)
-    ) {
-      const startTime = new Date(
-        eventData.start_time || existingEvent.start_time
-      );
-      const endTime = new Date(eventData.end_time || existingEvent.end_time);
-
-      if (endTime <= startTime) {
-        throw new EventValidationError(
-          "Bitiş zamanı başlangıç zamanından sonra olmalıdır."
-        );
-      }
-    }
-
     // Güncelleme verilerini hazırla, sadece gönderilen alanları güncelle
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
+
+    // Special handling for date changes - need to sync with start/end times
+    if (eventData.event_date) {
+      // If date is changing but start_time not explicitly provided, we need to update it
+      if (!eventData.start_time && existingEvent.start_time) {
+        // Extract time part from existing start_time
+        const existingStartTime = existingEvent.start_time;
+        if (existingStartTime.includes("T")) {
+          const timePart = existingStartTime.split("T")[1];
+          // Create new start_time with updated date but same time
+          updateData.start_time = `${eventData.event_date}T${timePart}`;
+          logger.info(
+            `Auto-updating start_time to match new date: ${updateData.start_time}`
+          );
+        }
+      }
+
+      // Do the same for end_time
+      if (!eventData.end_time && existingEvent.end_time) {
+        const existingEndTime = existingEvent.end_time;
+        if (existingEndTime.includes("T")) {
+          const timePart = existingEndTime.split("T")[1];
+          // Create new end_time with updated date but same time
+          updateData.end_time = `${eventData.event_date}T${timePart}`;
+          logger.info(
+            `Auto-updating end_time to match new date: ${updateData.end_time}`
+          );
+        }
+      }
+    }
+
+    // Handle start_time changes when end_time is not provided by preserving the duration
+    if (eventData.start_time && !eventData.end_time && existingEvent.end_time) {
+      const newStartTime = new Date(eventData.start_time);
+      const oldStartTime = new Date(existingEvent.start_time);
+      const oldEndTime = new Date(existingEvent.end_time);
+
+      // Calculate the original duration in milliseconds
+      const durationMs = oldEndTime.getTime() - oldStartTime.getTime();
+
+      // Apply the same duration to the new start time
+      const newEndTime = new Date(newStartTime.getTime() + durationMs);
+
+      // Set the new end time
+      updateData.end_time = newEndTime.toISOString();
+      logger.info(
+        `Auto-adjusting end_time to maintain duration: ${updateData.end_time}`
+      );
+    }
+
+    // Now validate that end_time is after start_time if both are provided
+    const finalStartTime =
+      eventData.start_time || updateData.start_time || existingEvent.start_time;
+    const finalEndTime =
+      eventData.end_time || updateData.end_time || existingEvent.end_time;
+
+    const startTimeObj = new Date(finalStartTime);
+    const endTimeObj = new Date(finalEndTime);
+
+    if (isNaN(startTimeObj.getTime()) || isNaN(endTimeObj.getTime())) {
+      throw new EventValidationError(
+        "Invalid date format for start_time or end_time"
+      );
+    }
+
+    if (endTimeObj <= startTimeObj) {
+      throw new EventValidationError(
+        "Bitiş zamanı başlangıç zamanından sonra olmalıdır"
+      );
+    }
 
     // Güncellenebilecek alanlar
     const updatableFields = [

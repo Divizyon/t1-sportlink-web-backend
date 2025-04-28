@@ -1,7 +1,9 @@
-import express from 'express';
-import * as SportController from '../controllers/SportController';
+import { Router } from 'express';
+import { SportsController } from '../controllers/SportsController';
+// Gerekirse authentication/authorization middleware eklenebilir
+// import { protect, authorize } from '../middleware/authMiddleware';
 
-const router = express.Router();
+const router = Router();
 
 /**
  * @swagger
@@ -41,6 +43,6 @@ const router = express.Router();
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/', SportController.getAllSports);
+router.get('/', SportsController.getAllSports);
 
 export default router; 
