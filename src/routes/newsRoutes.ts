@@ -71,7 +71,7 @@ const upload = multer({
  *                   type: string
  *                   example: Haber başarıyla oluşturuldu.
  *                 data:
- *                   $ref: '#/components/schemas/News' # Assuming you have a News schema in models
+ *                   $ref: '#/components/schemas/NewsItem'
  *       '400':
  *         description: Bad Request - Missing required fields or invalid input.
  *       '401':

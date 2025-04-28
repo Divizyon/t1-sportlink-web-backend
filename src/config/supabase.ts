@@ -20,4 +20,5 @@ export const supabaseAdmin = process.env.SUPABASE_SERVICE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
   : supabase; // Eğer service key yoksa normal client'i kullan
 
-export default supabase; 
+// Varsayılan olarak supabaseAdmin'i export et
+export default supabaseAdmin; 
