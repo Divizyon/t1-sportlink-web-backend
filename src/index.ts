@@ -12,10 +12,12 @@ import profileRoutes from './routes/profileRoutes';
 import statsRoutes from './routes/statsRoutes';
 import statisticsRoutes from './routes/statisticsRoutes';
 import newsRoutes from './routes/newsRoutes';
+import newsScraperRoutes from './routes/newsScraperRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
 import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
+import newsExpiryChecker from './utils/newsExpiryChecker';
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -60,18 +62,22 @@ app.use('/api/security', securityRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/news-scraper', newsScraperRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
 
 // Start server
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Server running on port ${port}`);
   console.log(`API Documentation available at http://localhost:${port}/api-docs`);
   
   // Start scheduled jobs
   scheduleCompletedEventsJob();
   console.log('Scheduled jobs started');
+  
+  // Haber süresi kontrol servisini başlat
+  newsExpiryChecker.start();
 });
 
 export default app;

@@ -1,5 +1,5 @@
-import express, { Request, Response } from 'express';
-import swaggerJsdoc from 'swagger-jsdoc';
+import express, { Request, Response, Express } from 'express';
+import swaggerJsdoc, { Options, OAS3Definition } from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
 /**
@@ -8,9 +8,9 @@ import swaggerUi from 'swagger-ui-express';
  * 
  * @param app Express uygulaması
  */
-export const setupSwagger = (app: express.Application): void => {
+export const setupSwagger = (app: Express): void => {
   // Swagger seçenekleri tanımlaması
-  const swaggerOptions = {
+  const swaggerOptions: Options = {
     definition: {
       openapi: '3.0.0',
       info: {
@@ -40,6 +40,7 @@ export const setupSwagger = (app: express.Application): void => {
         { name: 'Security', description: 'Security logs' },
         { name: 'Sports', description: 'Spor yönetimi' },
         { name: 'Stats', description: 'İstatistik ve dashboard verileri' },
+        { name: 'News Scraper', description: 'Haber scraping işlemleri' },
       ],
       paths: {
         '/api/stats/weekly': {
@@ -140,6 +141,419 @@ export const setupSwagger = (app: express.Application): void => {
             }
           }
         },
+        '/api/news-scraper/scraped': {
+          get: {
+            tags: ['News Scraper'],
+            summary: 'Tüm scrape edilmiş haberleri listeler',
+            description: 'Tüm scrape edilmiş haberleri durumlarına bakılmaksızın listeler',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Tüm haberler başarıyla listelendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        count: {
+                          type: 'number',
+                          example: 10
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/NewsItem'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/news-scraper/test': {
+          get: {
+            tags: ['News Scraper'],
+            summary: 'API durum kontrolü (Test)',
+            description: "API'nin çalışıp çalışmadığını kontrol etmek için test endpointi (kimlik doğrulaması gerektirmez)",
+            responses: {
+              '200': {
+                description: 'API çalışıyor',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        message: {
+                          type: 'string',
+                          example: 'Haber Scraper API çalışıyor!'
+                        },
+                        timestamp: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2024-04-27T12:34:56.789Z'
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/news-scraper/test-scrape': {
+          post: {
+            tags: ['News Scraper'],
+            summary: "URL'den haber scrape et (Test)",
+            description: "Belirtilen URL'den haber içeriğini scrape eder ve veritabanına kaydeder (kimlik doğrulaması gerektirmez)",
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['url', 'sport_id'],
+                    properties: {
+                      url: {
+                        type: 'string',
+                        description: "Haber scrape edilecek web sitesi URL'si",
+                        example: 'https://www.haberturk.com/spor'
+                      },
+                      sport_id: {
+                        type: 'number',
+                        description: "Spor kategorisi ID'si",
+                        example: 1
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              '201': {
+                description: 'Haberler başarıyla kaydedildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        message: {
+                          type: 'string',
+                          example: '5 haber başarıyla kaydedildi'
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/NewsItem'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Geçersiz istek',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    },
+                    example: {
+                      status: 'error',
+                      message: "Haber URL'si gereklidir"
+                    }
+                  }
+                }
+              },
+              '404': {
+                description: 'Haber bulunamadı',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    },
+                    example: {
+                      status: 'error',
+                      message: "URL'den haber bulunamadı"
+                    }
+                  }
+                }
+              },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/news-scraper/test-pending': {
+          get: {
+            tags: ['News Scraper'],
+            summary: 'Bekleyen haberleri listele (Test)',
+            description: 'Onay bekleyen haberleri listeler (kimlik doğrulaması gerektirmez)',
+            responses: {
+              '200': {
+                description: 'Bekleyen haberler başarıyla listelendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        count: {
+                          type: 'number',
+                          example: 3
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/NewsItem'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/news-scraper/{id}/status': {
+          patch: {
+             tags: ['News Scraper'],
+             summary: 'Haber durumunu güncelle',
+             description: "Belirtilen ID'ye sahip haberin durumunu güncellers (onayla/reddet)",
+             security: [{ bearerAuth: [] }],
+             parameters: [
+               {
+                 in: 'path',
+                 name: 'id',
+                 required: true,
+                 schema: {
+                   type: 'integer'
+                 },
+                 description: "Durumu güncellenecek haberin ID'si"
+               }
+             ],
+             requestBody: {
+               required: true,
+               content: {
+                 'application/json': {
+                   schema: {
+                     type: 'object',
+                     required: ['status'],
+                     properties: {
+                       status: {
+                         type: 'string',
+                         enum: ['APPROVED', 'REJECTED'],
+                         description: 'Yeni haber durumu'
+                       }
+                     }
+                   }
+                 }
+               }
+             },
+             responses: {
+               '200': {
+                 description: 'Haber durumu başarıyla güncellendi',
+                 content: {
+                   'application/json': {
+                     schema: {
+                       type: 'object',
+                       properties: {
+                         status: { type: 'string', example: 'success' },
+                         message: { type: 'string', example: 'Haber durumu güncellendi' },
+                         data: { $ref: '#/components/schemas/NewsItem' }
+                       }
+                     }
+                   }
+                 }
+               },
+               '400': { description: 'Geçersiz ID veya durum', $ref: '#/components/responses/BadRequestError' },
+               '401': { $ref: '#/components/responses/UnauthorizedError' },
+               '403': { $ref: '#/components/responses/ForbiddenError' },
+               '404': { description: 'Haber bulunamadı', $ref: '#/components/responses/NotFoundError' },
+               '500': { $ref: '#/components/responses/InternalServerError' }
+             }
+           }
+         },
+        '/api/news-scraper/approved': {
+          get: {
+            tags: ['News Scraper'],
+            summary: 'Onaylanmış haberleri listele',
+            description: 'Onaylanmış haberleri listeler',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Onaylanmış haberler başarıyla listelendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        count: {
+                          type: 'number',
+                          example: 5
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/NewsItem'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/news-scraper/rejected': {
+          get: {
+            tags: ['News Scraper'],
+            summary: 'Reddedilmiş haberleri listele',
+            description: 'Reddedilmiş haberleri listeler',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Reddedilmiş haberler başarıyla listelendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: {
+                          type: 'string',
+                          enum: ['success'],
+                          example: 'success'
+                        },
+                        count: {
+                          type: 'number',
+                          example: 3
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/NewsItem'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/news-scraper/{id}': {
+          delete: {
+            tags: ['News Scraper'],
+            summary: 'Haberi sil',
+            description: "Belirtilen ID'ye sahip haberi tamamen siler",
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                in: 'path',
+                name: 'id',
+                required: true,
+                schema: {
+                  type: 'integer'
+                },
+                description: "Silinecek haberin ID'si"
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Haber başarıyla silindi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { 
+                          type: 'string', 
+                          enum: ['success'],
+                          example: 'success' 
+                        },
+                        message: { 
+                          type: 'string', 
+                          example: 'Haber başarıyla silindi' 
+                        },
+                        data: { 
+                          $ref: '#/components/schemas/NewsItem' 
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Geçersiz istek',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    },
+                    example: {
+                      status: 'error',
+                      message: "Geçerli bir haber ID'si gereklidir"
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
+              '404': {
+                description: 'Haber bulunamadı',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    },
+                    example: {
+                      status: 'error',
+                      message: 'Haber bulunamadı veya silinemedi'
+                    }
+                  }
+                }
+              },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
       },
       components: {
         securitySchemes: {
@@ -147,7 +561,7 @@ export const setupSwagger = (app: express.Application): void => {
             type: 'apiKey',
             in: 'header',
             name: 'Authorization',
-            description: 'API token\'ınızı doğrudan girebilirsiniz. "Bearer" öneki otomatik olarak eklenecektir.',
+            description: "API token'ınızı doğrudan girebilirsiniz. \"Bearer\" öneki otomatik olarak eklenecektir.",
           },
         },
         responses: {
@@ -193,6 +607,15 @@ export const setupSwagger = (app: express.Application): void => {
               },
             },
           },
+          BadRequestError: {
+            description: 'Geçersiz istek',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' },
+                example: { status: 'error', message: 'Geçersiz istek parametreleri' }
+              }
+            }
+          },
           InternalServerError: {
             description: 'Sunucu hatası',
             content: {
@@ -209,6 +632,20 @@ export const setupSwagger = (app: express.Application): void => {
           },
         },
         schemas: {
+          NewsItem: {
+            type: 'object',
+            properties: {
+              id: { type: 'integer', description: "Haberin benzersiz ID'si" },
+              title: { type: 'string', description: 'Haber başlığı' },
+              link: { type: 'string', format: 'url', description: 'Haberin orijinal linki' },
+              image_url: { type: 'string', format: 'url', description: "Haber görseli URL'si" },
+              source: { type: 'string', description: 'Haber kaynağı (örn. Haberturk)' },
+              sport_id: { type: 'integer', description: "İlişkili spor kategorisi ID'si" },
+              status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'], description: 'Haberin durumu' },
+              created_at: { type: 'string', format: 'date-time', description: 'Oluşturulma tarihi' },
+              updated_at: { type: 'string', format: 'date-time', description: 'Güncellenme tarihi' }
+            }
+          },
           Report: {
             type: 'object',
             required: ['id', 'konu', 'raporlayan', 'tarih', 'tur', 'oncelik', 'durum'],
@@ -283,7 +720,7 @@ export const setupSwagger = (app: express.Application): void => {
               },
               entityId: {
                 type: 'number',
-                description: 'Raporlanan varlığın ID\'si'
+                description: "Raporlanan varlığın ID'si"
               },
               entityType: {
                 type: 'string',
@@ -316,7 +753,7 @@ export const setupSwagger = (app: express.Application): void => {
               },
               role: {
                 type: 'string',
-                enum: ['admin', 'user', 'coach'],
+                enum: ['ADMIN', 'STAFF', 'USER'],
                 description: 'Kullanıcı rolü',
               },
               created_at: {
@@ -335,7 +772,7 @@ export const setupSwagger = (app: express.Application): void => {
               email: 'user@example.com',
               first_name: 'John',
               last_name: 'Doe',
-              role: 'user',
+              role: 'USER',
               created_at: '2023-01-01T00:00:00.000Z',
               updated_at: '2023-01-01T00:00:00.000Z',
             },
@@ -365,9 +802,9 @@ export const setupSwagger = (app: express.Application): void => {
               },
               role: {
                 type: 'string',
-                enum: ['admin', 'user', 'coach'],
-                default: 'user',
-                description: 'Kullanıcı rolü (varsayılan: user)',
+                enum: ['ADMIN', 'STAFF', 'USER'],
+                default: 'USER',
+                description: 'Kullanıcı rolü (varsayılan: USER)',
               },
             },
             example: {
@@ -382,7 +819,7 @@ export const setupSwagger = (app: express.Application): void => {
             required: ['id', 'name', 'email', 'role', 'status', 'joinDate'],
             properties: {
               id: {
-                type: 'integer',
+                type: 'string',
                 description: 'Kullanıcı benzersiz tanımlayıcısı',
               },
               name: {
@@ -396,11 +833,13 @@ export const setupSwagger = (app: express.Application): void => {
               },
               role: {
                 type: 'string',
-                description: 'Kullanıcı rolü (Türkçe, örn. "üye", "yönetici")',
+                enum: ['üye', 'admin', 'personel'],
+                description: 'Kullanıcı rolü (Türkçe)',
               },
               status: {
                 type: 'string',
-                description: 'Kullanıcı hesap durumu (örn. "aktif", "pasif")',
+                enum: ['aktif', 'pasif', 'beklemede'],
+                description: 'Kullanıcı hesap durumu',
               },
               joinDate: {
                 type: 'string',
@@ -423,7 +862,7 @@ export const setupSwagger = (app: express.Application): void => {
               },
             },
             example: {
-              id: 1,
+              id: '550e8400-e29b-41d4-a716-446655440000',
               name: "Ahmet Koç",
               email: "ahmet@example.com",
               role: "üye",
@@ -456,17 +895,18 @@ export const setupSwagger = (app: express.Application): void => {
           },
           ResetPasswordDTO: {
             type: 'object',
-            required: ['email'],
+            required: ['password'],
             properties: {
-              email: {
+              password: {
                 type: 'string',
-                format: 'email',
-                description: 'Şifresini sıfırlamak istediğiniz hesabın e-posta adresi',
-              },
+                format: 'password',
+                minLength: 8,
+                description: 'Yeni şifre (min. 8 karakter)'
+              }
             },
             example: {
-              email: 'user@example.com',
-            },
+              password: 'newSecurePassword123'
+            }
           },
           AuthResponse: {
             type: 'object',
@@ -561,12 +1001,12 @@ export const setupSwagger = (app: express.Application): void => {
               creator_id: {
                 type: 'string',
                 format: 'uuid',
-                description: 'Etkinliği oluşturan kullanıcının ID\'si'
+                description: "Etkinliği oluşturan kullanıcının ID'si"
               },
               sport_id: {
                 type: 'integer',
                 format: 'int64',
-                description: 'Etkinliğin spor türünün ID\'si'
+                description: "Etkinliğin spor türünün ID'si"
               },
               title: {
                 type: 'string',
@@ -655,12 +1095,12 @@ export const setupSwagger = (app: express.Application): void => {
               event_id: {
                 type: 'integer',
                 format: 'int64',
-                description: 'Etkinliğin ID\'si'
+                description: "Etkinliğin ID'si"
               },
               user_id: {
                 type: 'string',
                 format: 'uuid',
-                description: 'Katılımcı kullanıcının ID\'si'
+                description: "Katılımcı kullanıcının ID'si"
               },
               role: {
                 type: 'string',
@@ -680,7 +1120,7 @@ export const setupSwagger = (app: express.Application): void => {
               id: {
                 type: 'integer',
                 format: 'int64',
-                description: 'Etkinlik ID\'si'
+                description: "Etkinlik ID'si"
               },
               title: {
                 type: 'string',
@@ -802,11 +1242,11 @@ export const setupSwagger = (app: express.Application): void => {
   };
 
   // Swagger doküman oluşturma
-  const swaggerSpec = swaggerJsdoc(swaggerOptions) as { paths?: Record<string, any> };
+  const swaggerSpec = swaggerJsdoc(swaggerOptions) as OAS3Definition;
   
   // API yollarını düzeltme - Route'ların başına /api eklemek
   if (swaggerSpec && swaggerSpec.paths) {
-    const updatedPaths: Record<string, any> = {};
+    const updatedPaths: { [key: string]: any } = {};
     
     // Tüm yolları döngüyle gezerek düzelt
     Object.keys(swaggerSpec.paths).forEach(path => {

@@ -56,6 +56,4 @@ export const NewsController = {
       next(error);
     }
   }
-
-  // Diğer NewsController fonksiyonları (getNews, deleteNews vb.) buraya eklenebilir
 }; 
