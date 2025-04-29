@@ -215,11 +215,12 @@ export const setupSwagger = (app: Express): void => {
             }
           }
         },
-        '/api/news-scraper/test-scrape': {
+        '/api/news-scraper/scrape': {
           post: {
             tags: ['News Scraper'],
-            summary: "URL'den haber scrape et (Test)",
-            description: "Belirtilen URL'den haber içeriğini scrape eder ve veritabanına kaydeder (kimlik doğrulaması gerektirmez)",
+            summary: "URL'den haber scrape et",
+            description: "Belirtilen URL'den haber içeriğini scrape eder ve veritabanına kaydeder (admin yetkileri gerektirir)",
+            security: [{ bearerAuth: [] }],
             requestBody: {
               required: true,
               content: {
@@ -303,11 +304,12 @@ export const setupSwagger = (app: Express): void => {
             }
           }
         },
-        '/api/news-scraper/test-pending': {
+        '/api/news-scraper/pending': {
           get: {
             tags: ['News Scraper'],
-            summary: 'Bekleyen haberleri listele (Test)',
-            description: 'Onay bekleyen haberleri listeler (kimlik doğrulaması gerektirmez)',
+            summary: 'Bekleyen haberleri listele',
+            description: 'Onay bekleyen haberleri listeler (admin yetkileri gerektirir)',
+            security: [{ bearerAuth: [] }],
             responses: {
               '200': {
                 description: 'Bekleyen haberler başarıyla listelendi',
@@ -336,6 +338,8 @@ export const setupSwagger = (app: Express): void => {
                   }
                 }
               },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '403': { $ref: '#/components/responses/ForbiddenError' },
               '500': { $ref: '#/components/responses/InternalServerError' }
             }
           }

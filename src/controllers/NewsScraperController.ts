@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { NewsScraperService } from '../services/NewsScraperService';
-import { NewsStatus } from '../types/News';
+import { NewsScraperService, NewsStatus } from '../services/NewsScraperService';
 import logger from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
+import supabaseAdmin from '../utils/supabaseClient';
 
 export class NewsScraperController {
   private newsScraperService: NewsScraperService;
@@ -131,22 +131,48 @@ export class NewsScraperController {
       const { id } = req.params;
       const { status } = req.body;
       
+      console.log(`Durum güncelleme isteği alındı: ID=${id}, Status=${status}`);
+      console.log('Mevcut enum değerleri:', Object.values(NewsStatus));
+      
       if (!id || isNaN(Number(id))) {
         res.status(400).json({ status: 'error', message: 'Geçerli bir haber ID\'si gereklidir' });
         return;
       }
       
-      if (!status || !Object.values(NewsStatus).includes(status as NewsStatus)) {
+      const validStatuses = Object.values(NewsStatus);
+      console.log(`Statüs kontrol ediliyor: ${status}, Geçerli değerler: ${validStatuses.join(', ')}`);
+      
+      if (!status) {
         res.status(400).json({
           status: 'error',
-          message: `Geçerli bir durum değeri gereklidir. Olası değerler: ${Object.values(NewsStatus).join(', ')}`
+          message: `Durum değeri gereklidir. Olası değerler: ${validStatuses.join(', ')}`
+        });
+        return;
+      }
+      
+      // String kontrolü ekleyelim
+      if (typeof status !== 'string') {
+        res.status(400).json({
+          status: 'error',
+          message: `Durum değeri string olmalıdır. Gönderilen: ${typeof status}`
+        });
+        return;
+      }
+      
+      // Enum değerlerine göre değil, alınan string değer doğrudan pending, approved, rejected değerlerine mi uyuyor diye kontrol edelim
+      const lowerStatus = status.toLowerCase();
+      if (!['pending', 'approved', 'rejected', 'scraped'].includes(lowerStatus)) {
+        res.status(400).json({
+          status: 'error',
+          message: `Geçerli bir durum değeri gereklidir. Olası değerler: pending, approved, rejected, scraped`
         });
         return;
       }
       
       logger.info('NewsScraperController: Haber durumu güncelleme isteği alındı', { id, status });
       
-      const updatedNews = await this.newsScraperService.updateNewsStatus(Number(id), status);
+      const updatedNews = await this.newsScraperService.updateNewsStatus(Number(id), lowerStatus);
+      console.log('Güncelleme yanıtı:', updatedNews);
       
       if (!updatedNews || updatedNews.length === 0) {
         res.status(404).json({ status: 'error', message: 'Haber bulunamadı veya güncellenemedi' });
@@ -155,7 +181,7 @@ export class NewsScraperController {
       
       res.status(200).json({
         status: 'success',
-        message: `Haber durumu '${status}' olarak güncellendi`,
+        message: `Haber durumu '${lowerStatus}' olarak güncellendi`,
         data: updatedNews
       });
     } catch (error: any) {
@@ -204,7 +230,7 @@ export class NewsScraperController {
       
       logger.info('NewsScraperController: Haber silme isteği alındı', { id });
       
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('News')
         .delete()
         .eq('id', Number(id))
@@ -229,6 +255,40 @@ export class NewsScraperController {
       res.status(500).json({
         status: 'error',
         message: error.message || 'Haber silinirken bir hata oluştu'
+      });
+    }
+  };
+
+  /**
+   * Belirli durumdaki haberlerin sayısını getirir
+   * @param req Express request
+   * @param res Express response
+   */
+  public getNewsCount = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { status } = req.query;
+      
+      // Status parametresi string olmalı, eğer değilse undefined olarak bırak
+      const statusParam = typeof status === 'string' ? status : undefined;
+      
+      console.log(`Haber sayısı isteniyor, durum filtresi: ${statusParam || 'tümü'}`);
+      
+      const count = await this.newsScraperService.getNewsCount(statusParam);
+      
+      console.log(`Toplam ${count} haber bulundu (durum: ${statusParam || 'tümü'})`);
+      
+      res.status(200).json({
+        status: 'success',
+        count,
+        data: { count }
+      });
+    } catch (error: any) {
+      console.error('Haber sayısı alınırken hata oluştu:', error);
+      
+      res.status(500).json({
+        status: 'error',
+        message: 'Haber sayısı alınamadı',
+        error: error.message
       });
     }
   };

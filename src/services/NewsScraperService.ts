@@ -1,7 +1,30 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { ScrapedNews } from '../types/News';
-import supabase from '../config/supabase';
+import { supabase } from '../utils/supabaseClient';
+import supabaseAdmin from '../utils/supabaseClient';
+
+// Haber durumları için enum
+export enum NewsStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  SCRAPED = 'scraped'
+}
+
+// Haber modeli
+export interface News {
+  id?: string;
+  title: string;
+  content: string;
+  source_url: string;
+  source_name: string;
+  image_url?: string;
+  published_at?: string;
+  status: NewsStatus;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export class NewsScraperService {
   
@@ -566,7 +589,11 @@ export class NewsScraperService {
           
         if (!existingNews) {
           // Yeni haber kaydı oluştur
-          const { data, error } = await supabase
+          const { data, error } = await supabase.auth.getSession();
+          console.log("Mevcut oturum:", data?.session ? "Oturum var" : "Oturum yok");
+          
+          // Admin istemcisi kullanarak RLS politikalarını atla
+          const { data: insertedData, error: insertError } = await supabaseAdmin
             .from('News')
             .insert({
               title: item.title,
@@ -583,8 +610,17 @@ export class NewsScraperService {
             })
             .select();
             
-          if (error) throw error;
-          if (data) savedNews.push(data[0]);
+          if (insertError) {
+            console.error("Haber ekleme hatası (detaylı):", {
+              kod: insertError.code,
+              mesaj: insertError.message,
+              detay: insertError.details,
+              ipucu: insertError.hint
+            });
+            throw insertError;
+          }
+          
+          if (insertedData) savedNews.push(insertedData[0]);
         }
       }
       
@@ -602,21 +638,49 @@ export class NewsScraperService {
    */
   public async updateNewsStatus(newsId: number, status: string): Promise<any> {
     try {
+      console.log(`updateNewsStatus çağrıldı: ID=${newsId}, Durum=${status}`);
+      
       // Eğer durum "rejected" ise haberi sil
       if (status === 'rejected') {
         console.log(`Haber reddedildi, ID: ${newsId} - siliniyor`);
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('News')
           .delete()
           .eq('id', newsId)
           .select();
           
-        if (error) throw error;
+        if (error) {
+          console.error(`Haber silme hatası: ${error.message}`, error);
+          throw error;
+        }
+        
+        console.log(`Haber silme yanıtı:`, data);
         console.log(`Haber silindi, ID: ${newsId}`);
         return data;
       } else {
         // Diğer durumlarda normal güncelleme yap
-        const { data, error } = await supabase
+        console.log(`Haber güncelleniyor, ID: ${newsId}, Yeni durum: ${status}`);
+        
+        // Önce haberin var olup olmadığını kontrol et
+        const { data: existingNews, error: checkError } = await supabaseAdmin
+          .from('News')
+          .select('id, status')
+          .eq('id', newsId)
+          .single();
+          
+        if (checkError) {
+          console.error(`Haber kontrol hatası: ${checkError.message}`, checkError);
+          throw checkError;
+        }
+        
+        console.log('Mevcut haber:', existingNews);
+        
+        if (!existingNews) {
+          console.log(`ID ${newsId} ile haber bulunamadı`);
+          return [];
+        }
+        
+        const { data, error } = await supabaseAdmin
           .from('News')
           .update({ 
             status, 
@@ -625,7 +689,12 @@ export class NewsScraperService {
           .eq('id', newsId)
           .select();
           
-        if (error) throw error;
+        if (error) {
+          console.error(`Haber güncelleme hatası: ${error.message}`, error);
+          throw error;
+        }
+        
+        console.log(`Haber güncelleme yanıtı:`, data);
         return data;
       }
     } catch (error: any) {
@@ -639,23 +708,67 @@ export class NewsScraperService {
    * @param status Durum filtresi (opsiyonel)
    * @returns Haber listesi
    */
-  public async listNewsByStatus(status?: string): Promise<any[]> {
+  public async listNewsByStatus(status?: NewsStatus, offset: number = 0, limit: number = 10): Promise<News[]> {
     try {
-      let query = supabase
+      // Admin istemcisini kullan (RLS politikalarını atlamak için)
+      const supabaseAdmin = await this.getSupabaseAdmin();
+      
+      // Sorguyu oluştur
+      let query = supabaseAdmin.from('News').select('*');
+      
+      // Durum filtresini uygula
+      if (status) {
+        query = query.eq('status', status);
+      }
+      
+      // Limit ve offset ayarla, oluşturulma tarihine göre sırala
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      
+      // Hata kontrolü
+      if (error) {
+        console.error('Haber listesi alınırken hata oluştu:', error);
+        throw error;
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Haber listesi alınırken beklenmeyen hata:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Belirli durumdaki haberlerin sayısını getirir
+   * @param status Durum filtresi (opsiyonel)
+   * @returns Haber sayısı
+   */
+  public async getNewsCount(status?: string): Promise<number> {
+    try {
+      let query = supabaseAdmin
         .from('News')
-        .select('*');
+        .select('*', { count: 'exact', head: true });
         
       if (status) {
         query = query.eq('status', status);
       }
       
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { count, error } = await query;
       
       if (error) throw error;
-      return data || [];
+      return count || 0;
     } catch (error: any) {
-      console.error('Haber listeleme hatası:', error);
-      throw new Error(`Haberler listelenemedi: ${error.message}`);
+      console.error('Haber sayısı alınamadı:', error);
+      throw new Error(`Haber sayısı alınamadı: ${error.message}`);
     }
+  }
+
+  /**
+   * Supabase admin istemcisini döndürür
+   * @returns Supabase admin istemci
+   */
+  private async getSupabaseAdmin() {
+    return supabaseAdmin; // default export olarak supabaseAdmin
   }
 } 
