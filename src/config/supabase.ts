@@ -5,20 +5,32 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Çevre değişkenlerini kontrol et
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  throw new Error('SUPABASE_URL ve SUPABASE_KEY çevre değişkenleri tanımlanmalıdır.');
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY || !process.env.SUPABASE_SERVICE_KEY) {
+  throw new Error('SUPABASE_URL, SUPABASE_KEY ve SUPABASE_SERVICE_KEY çevre değişkenleri tanımlanmalıdır.');
 }
 
-// Normal client for user operations
-const supabase = createClient(
+// Normal user client (JWT ile)
+export const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  process.env.SUPABASE_KEY,
+  {
+    auth: {
+      persistSession: false
+    }
+  }
 );
 
-// Admin client for administrative operations (if service key exists)
-export const supabaseAdmin = process.env.SUPABASE_SERVICE_KEY
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-  : supabase; // Eğer service key yoksa normal client'i kullan
+// Admin client (service role key ile) - RLS bypass eder
+export const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL, 
+  process.env.SUPABASE_SERVICE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  }
+);
 
 // Varsayılan olarak supabaseAdmin'i export et
 export default supabaseAdmin; 

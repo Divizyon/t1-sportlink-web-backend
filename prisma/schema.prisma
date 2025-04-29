@@ -30,16 +30,22 @@ model User_Sports {
 }
 
 model News {
-  id             BigInt   @id @default(autoincrement())
+  id             BigInt    @id @default(autoincrement())
   title          String
   content        String
   source_url     String
-  image_url      String
+  image_url      String?
   published_date DateTime
   sport_id       BigInt
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-  sport          Sports   @relation(fields: [sport_id], references: [id])
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  status         String    @default("pending")
+  tags           String[]
+  type           String?
+  end_time       DateTime? @db.Timestamptz(6)
+  sport          Sports    @relation(fields: [sport_id], references: [id])
+
+  @@index([status], map: "idx_news_status")
 }
 
 model Events {
@@ -58,6 +64,8 @@ model Events {
   created_at         DateTime             @default(now())
   updated_at         DateTime             @updatedAt
   creator_id         String               @db.Uuid
+  approved_at        DateTime?            @db.Timestamptz(6)
+  rejected_at        DateTime?            @db.Timestamptz(6)
   participants       Event_Participants[]
   ratings            Event_Ratings[]
   creator            users                @relation("UserEvents", fields: [creator_id], references: [id])
@@ -94,24 +102,27 @@ model Notifications {
   content           String
   read_status       Boolean  @default(false)
   created_at        DateTime @default(now())
-  event_id          BigInt
+  event_id          BigInt?
   user_id           String   @db.Uuid
-  event             Events   @relation(fields: [event_id], references: [id])
+  link              String?
+  event             Events?  @relation(fields: [event_id], references: [id], onDelete: Restrict)
   user              users    @relation(fields: [user_id], references: [id])
 }
 
 model Reports {
-  id            BigInt   @id @default(autoincrement())
-  event_id      BigInt
-  report_reason String
-  report_date   DateTime @default(now())
-  status        String
-  admin_notes   String?
-  reporter_id   String   @db.Uuid
-  reported_id   String   @db.Uuid
-  event         Events   @relation(fields: [event_id], references: [id])
-  reported      users    @relation("Reported", fields: [reported_id], references: [id])
-  reporter      users    @relation("Reporter", fields: [reporter_id], references: [id])
+  id                              BigInt   @id @default(autoincrement())
+  event_id                        BigInt
+  report_reason                   String
+  report_date                     DateTime @default(now())
+  status                          String
+  admin_notes                     String?
+  reporter_id                     String   @db.Uuid
+  reported_id                     String   @db.Uuid
+  updated_by                      String?  @db.Uuid
+  event                           Events   @relation(fields: [event_id], references: [id])
+  reported                        users    @relation("Reported", fields: [reported_id], references: [id])
+  reporter                        users    @relation("Reporter", fields: [reporter_id], references: [id])
+  users_Reports_updated_byTousers users?   @relation("Reports_updated_byTousers", fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model Admin_Logs {
@@ -148,8 +159,8 @@ model users {
   role                                        String                 @default("USER")
   created_at                                  DateTime               @default(now())
   updated_at                                  DateTime
-  is_banned                                   Boolean                @default(false)
-  banned_at                                   DateTime?
+  is_watched                                  Boolean                @default(false)
+  watched_since                               DateTime?
   status                                      String                 @default("active")
   gender                                      String?
   age                                         Int?
@@ -162,6 +173,7 @@ model users {
   notifications                               Notifications[]
   reportsReceived                             Reports[]              @relation("Reported")
   reportsMade                                 Reports[]              @relation("Reporter")
+  Reports_Reports_updated_byTousers           Reports[]              @relation("Reports_updated_byTousers")
   userRatingsReceived                         User_Ratings[]         @relation("RatedUser")
   userRatingsGiven                            User_Ratings[]         @relation("RatingUser")
   userSports                                  User_Sports[]
@@ -205,4 +217,14 @@ model user_favorite_sports {
   users    users    @relation(fields: [user_id], references: [id])
 
   @@id([user_id, sport_id])
+}
+
+model Announcements {
+  id         Int       @id @default(autoincrement())
+  title      String
+  content    String
+  image_url  String?
+  creator_id String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
 }

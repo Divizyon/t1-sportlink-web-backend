@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as userService from '../services/userService';
 import supabase, { supabaseAdmin } from '../config/supabase';
 import logger from '../utils/logger';
+import { NotificationService } from '../services/NotificationService';
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -103,6 +104,9 @@ export const getUserDetails = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Kullanıcı durumunu aktif/inaktif olarak değiştirir
+ */
 export const toggleUserStatusController = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -116,6 +120,45 @@ export const toggleUserStatusController = async (req: Request, res: Response) =>
     }
 
     const result = await userService.toggleUserStatus(userId, adminId);
+    
+    // Kullanıcı durumu inaktif olduğunda adminlere bildirim gönder
+    if (result.status === 'inactive') {
+      try {
+        // Kullanıcı adını al
+        const { data: userData } = await supabaseAdmin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', userId)
+          .single();
+          
+        // Admin adını al
+        const { data: adminData } = await supabaseAdmin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', adminId)
+          .single();
+          
+        const userName = userData 
+          ? `${userData.first_name} ${userData.last_name}`
+          : 'Bilinmeyen Kullanıcı';
+          
+        const adminName = adminData
+          ? `${adminData.first_name} ${adminData.last_name}`
+          : 'Bir Admin';
+          
+        // Bildirim gönder
+        const notificationService = new NotificationService();
+        await notificationService.notifyAdminsUserInactive(
+          userId,
+          userName,
+          `${adminName} tarafından inaktif yapıldı`
+        );
+        logger.info(`Kullanıcı inaktif bildirimi gönderildi: ${userName}`);
+      } catch (notificationError) {
+        logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+        // Ana işlemi etkilememesi için hata fırlatmıyoruz
+      }
+    }
     
     return res.status(200).json({
       message: `Kullanıcı durumu ${result.status} olarak güncellendi`,
@@ -200,6 +243,14 @@ export const toggleUserWatch = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     const { watch } = req.body;
+    const adminId = req.user?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ 
+        error: 'Yetkilendirme başarısız',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız' 
+      });
+    }
 
     // Önce kullanıcıyı kontrol et
     const { data: user, error: userError } = await supabaseAdmin
@@ -232,6 +283,39 @@ export const toggleUserWatch = async (req: Request, res: Response) => {
         status: 'error',
         message: 'Kullanıcı izleme durumu güncellenirken bir hata oluştu'
       });
+    }
+
+    // Kullanıcı izlemeye alındığında bildirim gönder
+    if (watch) {
+      try {
+        // Kullanıcı adını al
+        const userName = updatedUser 
+          ? `${updatedUser.first_name} ${updatedUser.last_name}`
+          : 'Bilinmeyen Kullanıcı';
+          
+        // Admin adını al
+        const { data: adminData } = await supabaseAdmin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', adminId)
+          .single();
+          
+        const adminName = adminData
+          ? `${adminData.first_name} ${adminData.last_name}`
+          : 'Bir Admin';
+          
+        // Bildirim gönder
+        const notificationService = new NotificationService();
+        await notificationService.notifyAdminsUserWatched(
+          userId,
+          userName,
+          adminName
+        );
+        logger.info(`Kullanıcı izleme bildirimi gönderildi: ${userName}`);
+      } catch (notificationError) {
+        logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+        // Ana işlemi etkilememesi için hata fırlatmıyoruz
+      }
     }
 
     return res.status(200).json({

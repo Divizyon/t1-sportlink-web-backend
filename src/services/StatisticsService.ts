@@ -1,6 +1,6 @@
 import { format, parseISO, startOfDay, endOfDay, eachDayOfInterval, getDay, startOfMonth, endOfMonth } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import supabase from '../config/supabase';
+import supabase, { supabaseAdmin } from '../config/supabase';
 import { Database } from '../types/supabase';
 
 // Assuming Supabase types are potentially outdated, using 'any' temporarily
@@ -32,7 +32,7 @@ export const StatisticsService = {
       const endDate = endOfDay(parseISO(endDateStr));
 
       // Select end_date and status, filter by end_date
-      const { data: events, error } = await supabase
+      const { data: events, error } = await supabaseAdmin
         .from('events')
         .select('end_date, status') // Select end_date instead of created_at
         .gte('end_date', startDate.toISOString()) // Filter by end_date
@@ -130,7 +130,7 @@ export const StatisticsService = {
     const endDate = endOfMonth(dateForMonth);
 
     try {
-      const { data: events, error } = await supabase
+      const { data: events, error } = await supabaseAdmin
         .from('events')
         .select('status')
         .gte('created_at', startDate.toISOString())
