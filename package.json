@@ -9,7 +9,8 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "test": "jest",
-    "docs": "swagger-jsdoc -d swaggerDef.js -o swagger.json && swagger-ui-express swagger.json"
+    "docs": "swagger-jsdoc -d swaggerDef.js -o swagger.json && swagger-ui-express swagger.json",
+    "migration:create-announcements": "ts-node ./src/utils/dbMigration.ts create_announcements_table.sql"
   },
   "keywords": [
     "sportlink",
