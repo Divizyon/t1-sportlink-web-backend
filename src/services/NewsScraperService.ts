@@ -581,7 +581,7 @@ export class NewsScraperService {
       
       for (const item of news) {
         // Aynı source_url ile kayıt var mı kontrol et
-        const { data: existingNews } = await supabase
+        const { data: existingNews } = await supabaseAdmin
           .from('News')
           .select('id')
           .eq('source_url', item.source_url)

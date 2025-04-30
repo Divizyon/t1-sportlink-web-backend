@@ -4,6 +4,7 @@ import { UpdateEventStatusSchema, EventNotFoundError, EventPermissionError, Even
 import logger from '../utils/logger';
 import { EventValidationSchema } from '../models/Event';
 import supabase, { supabaseAdmin } from '../config/supabase';
+import { NotificationService } from '../services/NotificationService';
 
 export const updateEventStatus = async (req: Request, res: Response) => {
   try {
@@ -189,6 +190,32 @@ export const createEvent = async (req: Request, res: Response) => {
       try {
         const newEvent = await eventService.createEvent(newEventData);
         logger.info("Etkinlik başarıyla oluşturuldu:", newEvent);
+
+        // Etkinlik oluşturulduğunda adminlere bildirim gönder
+        try {
+          // Kullanıcı bilgilerini al
+          const { data: userData } = await supabaseAdmin
+            .from('users')
+            .select('first_name, last_name')
+            .eq('id', userId)
+            .single();
+            
+          const creatorName = userData 
+            ? `${userData.first_name} ${userData.last_name}`
+            : 'Bilinmeyen Kullanıcı';
+            
+          // Adminlere bildirim gönder
+          const notificationService = new NotificationService();
+          await notificationService.notifyAdminsNewEvent(
+            newEvent.id,
+            newEvent.title,
+            creatorName
+          );
+          logger.info(`Yeni etkinlik bildirimi gönderildi: ${newEvent.title}`);
+        } catch (notificationError) {
+          logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+          // Ana işlemi etkilememesi için hata fırlatmıyoruz
+        }
 
         // Başarılı yanıt
         return res.status(201).json({
@@ -385,11 +412,8 @@ export const getTodayEvents = async (req: Request, res: Response) => {
 export const updateEvent = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
-    // Oturum açmış kullanıcının kimliğini al
     const userId = req.userProfile?.id;
     
-    // Kullanıcı kimliği kontrolü
     if (!userId) {
       return res.status(401).json({
         status: 'error',
@@ -397,15 +421,37 @@ export const updateEvent = async (req: Request, res: Response) => {
       });
     }
     
-    logger.info(`Etkinlik güncelleme isteği: eventId=${id}, userId=${userId}`);
-    
     try {
       // Etkinliği güncelle
       const updatedEvent = await eventService.updateEvent(id, req.body, userId);
       
-      logger.info(`Etkinlik güncellendi: ${id}`);
+      // Etkinlik güncellendiğinde adminlere bildirim gönder
+      try {
+        // Kullanıcı bilgilerini al
+        const { data: userData } = await supabaseAdmin
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', userId)
+          .single();
+          
+        const updaterName = userData 
+          ? `${userData.first_name} ${userData.last_name}`
+          : 'Bilinmeyen Kullanıcı';
+          
+        // Adminlere bildirim gönder
+        const notificationService = new NotificationService();
+        await notificationService.notifyAdminsEventUpdated(
+          parseInt(id),
+          updatedEvent.title,
+          updaterName
+        );
+        logger.info(`Etkinlik güncelleme bildirimi gönderildi: ${updatedEvent.title}`);
+      } catch (notificationError) {
+        logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+        // Ana işlemi etkilememesi için hata fırlatmıyoruz
+      }
       
-      return res.status(200).json({
+      res.status(200).json({
         status: 'success',
         data: {
           event: updatedEvent
@@ -421,13 +467,6 @@ export const updateEvent = async (req: Request, res: Response) => {
       
       if (error instanceof EventPermissionError) {
         return res.status(403).json({
-          status: 'error',
-          message: error.message
-        });
-      }
-      
-      if (error instanceof EventStatusError) {
-        return res.status(400).json({
           status: 'error',
           message: error.message
         });

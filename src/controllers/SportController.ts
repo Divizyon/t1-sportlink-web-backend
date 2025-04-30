@@ -4,16 +4,16 @@ import logger from '../utils/logger';
 
 export const getAllSports = async (req: Request, res: Response) => {
   try {
-    const sports = await sportService.getAllSports();
+    const Sports = await sportService.getAllSports();
     
     res.status(200).json({
       status: 'success',
       data: {
-        sports
+        Sports
       }
     });
   } catch (error) {
-    logger.error('Get all sports error:', error);
+    logger.error('Get all Sports error:', error);
     res.status(500).json({
       status: 'error',
       message: 'Spor türleri getirilirken bir hata oluştu.'

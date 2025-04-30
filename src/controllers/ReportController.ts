@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as reportService from '../services/reportService';
+import { NotificationService } from '../services/NotificationService';
 
 /**
  * Tüm raporları getirir
@@ -34,6 +35,29 @@ export const getAllReports = async (req: Request, res: Response) => {
 export const getReportData = async (req: Request, res: Response) => {
   try {
     const reportData = await reportService.getReportData();
+    
+    // Yeni rapor oluşturulduğunda adminlere bildirim gönderme
+    try {
+      // Sadece yeni bir rapor eklendiğinde bildirim göndermek için bir kontrol ekleyebiliriz
+      // Örneğin: localStorage, redis veya bir bayrak kullanılabilir
+      // Bu örnekte basitlik için her zaman bildirim gönderiyoruz
+      if (reportData && reportData.length > 0) {
+        const notificationService = new NotificationService();
+        
+        // En son raporu al
+        const latestReport = reportData[0]; // reportData zaten tarihe göre sıralı geldiyse
+        
+        // Bildirim gönder
+        await notificationService.notifyAdminsNewReport(
+          latestReport.id,
+          latestReport.subject,
+          latestReport.reportedBy
+        );
+      }
+    } catch (notificationError) {
+      console.error('Rapor bildirimi gönderilirken hata oluştu:', notificationError);
+      // Ana işlevi etkilememesi için hata fırlatmıyoruz, sadece logluyoruz
+    }
     
     res.status(200).json({
       status: 'success',

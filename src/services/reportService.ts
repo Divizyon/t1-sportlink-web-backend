@@ -145,6 +145,9 @@ const mapDatabaseReportToFrontend = (databaseReport: any): Report => {
  */
 export const getAllReports = async (): Promise<Report[]> => {
   try {
+    // Service key kullanarak veritabanı sorgusu yapacağımızı logla
+    logger.info('Tüm raporlar getiriliyor - Service Role Key ile sorgu yapılıyor');
+    
     // Veritabanından raporları çek
     const { data, error } = await supabaseAdmin
       .from('Reports')
@@ -164,7 +167,12 @@ export const getAllReports = async (): Promise<Report[]> => {
       .order('report_date', { ascending: false });
       
     if (error) {
-      console.error('Raporlar getirilirken hata oluştu:', error);
+      logger.error('Raporlar getirilirken hata oluştu:', {
+        message: error.message,
+        code: error.code,
+        details: error.details || 'Detay yok',
+        hint: error.hint || 'İpucu yok'
+      });
       throw error;
     }
 
@@ -173,10 +181,11 @@ export const getAllReports = async (): Promise<Report[]> => {
     }
 
     // Veritabanından gelen verileri dönüştür
+    logger.info(`${data.length} rapor başarıyla alındı`);
     return data.map(report => mapDatabaseReportToFrontend(report));
     
   } catch (error) {
-    console.error('Rapor servisi hatası:', error);
+    logger.error('Rapor servisi hatası:', error);
     throw error;
   }
 };
