@@ -1,6 +1,7 @@
 import express from 'express';
 import * as EventController from '../controllers/EventController';
 import { protect, optionalAuth } from '../middleware/authMiddleware';
+import { enforceDbConnection } from '../middleware/databaseMiddleware';
 
 const router = express.Router();
 
@@ -73,7 +74,7 @@ router.get('/today', optionalAuth, EventController.getTodayEvents);
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/', EventController.getAllEvents);
+router.get('/', enforceDbConnection, EventController.getAllEvents);
 
 /**
  * @swagger
@@ -171,7 +172,7 @@ router.get('/', EventController.getAllEvents);
  *       500:
  *         description: Sunucu hatası
  */
-router.post('/', protect, EventController.createEvent);
+router.post('/', protect, enforceDbConnection, EventController.createEvent);
 
 /**
  * @swagger
@@ -208,7 +209,7 @@ router.post('/', protect, EventController.createEvent);
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/:id', EventController.getEventById);
+router.get('/:id', enforceDbConnection, EventController.getEventById);
 
 /**
  * @swagger

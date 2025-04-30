@@ -1,6 +1,7 @@
 import express from 'express';
 import * as ReportController from '../controllers/ReportController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
+import { enforceDbConnection } from '../middleware/databaseMiddleware';
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.use(restrictTo('ADMIN', 'STAFF'));
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/', ReportController.getAllReports);
+router.get('/', enforceDbConnection, ReportController.getAllReports);
 
 /**
  * @swagger
