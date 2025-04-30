@@ -4,21 +4,71 @@ import dotenv from 'dotenv';
 // Çevre değişkenlerini yükle
 dotenv.config();
 
-// Çevre değişkenlerini kontrol et
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  throw new Error('SUPABASE_URL ve SUPABASE_KEY çevre değişkenleri tanımlanmalıdır.');
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY || '';
+
+// Geliştirilmiş bağlantı havuzu yapılandırması ile client oluştur
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: false,
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    fetch: fetch.bind(globalThis)
+  }
+});
+
+// Admin işlemleri için service_role key ile client
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: false
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    fetch: fetch.bind(globalThis)
+  }
+});
+
+// Bağlantı havuzunu ısıtma fonksiyonu
+async function initializeConnectionPool() {
+  try {
+    // Basit bir sorgu çalıştırarak bağlantı havuzunu başlat
+    console.log('Bağlantı havuzu ısınma işlemi başlatılıyor...');
+    const { data, error } = await supabase.from('users').select('*').limit(1);
+    console.log('Bağlantı havuzu başlatıldı:', error ? 'Başarısız' : 'Başarılı');
+    if (error) throw error;
+    
+    // Admin bağlantısını da kontrol et
+    const { error: adminError } = await supabaseAdmin.from('users').select('*').limit(1);
+    console.log('Admin bağlantı havuzu başlatıldı:', adminError ? 'Başarısız' : 'Başarılı');
+    
+    return true;
+  } catch (err) {
+    console.error('Bağlantı havuzu ısınma hatası:', err);
+    return false;
+  }
 }
 
-// Normal client for user operations
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+// Bağlantı kontrolü fonksiyonu
+async function testDatabaseConnection() {
+  try {
+    const { data, error } = await supabase.from('users').select('id').limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
+}
 
-// Admin client for administrative operations (if service key exists)
-export const supabaseAdmin = process.env.SUPABASE_SERVICE_KEY
-  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-  : supabase; // Eğer service key yoksa normal client'i kullan
-
-// Varsayılan olarak supabaseAdmin'i export et
-export default supabaseAdmin; 
+export default supabase;
+export { 
+  supabaseAdmin, 
+  initializeConnectionPool as warmupConnectionPool, 
+  testDatabaseConnection as checkDatabaseConnection 
+}; 

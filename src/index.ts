@@ -18,6 +18,8 @@ import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
 import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 import newsExpiryChecker from './utils/newsExpiryChecker';
+import { warmupConnectionPool } from './config/supabase';
+import { dbConnectionCheck } from './middleware/databaseMiddleware';
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -52,6 +54,9 @@ app.use(logRequest); // Add logRequest middleware
 // Setup Swagger documentation
 setupSwagger(app);
 
+// Veritabanı bağlantı kontrolü middleware'ini ekle
+app.use(dbConnectionCheck);
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -67,17 +72,35 @@ app.use('/api/news-scraper', newsScraperRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-// Start server
-app.listen(port, async () => {
-  console.log(`Server running on port ${port}`);
-  console.log(`API Documentation available at http://localhost:${port}/api-docs`);
-  
-  // Start scheduled jobs
-  scheduleCompletedEventsJob();
-  console.log('Scheduled jobs started');
-  
-  // Haber süresi kontrol servisini başlat
-  newsExpiryChecker.start();
-});
+// Server başlatılmadan önce veritabanı bağlantısını ısıt
+const startServer = async () => {
+  try {
+    // Bağlantı havuzunu ısıt
+    await warmupConnectionPool();
+    
+    // Sunucuyu başlat
+    const server = app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+      
+      // Zamanlayıcı işlerini başlat
+      scheduleCompletedEventsJob();
+      console.log('Scheduled jobs started');
+    });
+    
+    // Haber süresi kontrol servisini başlat
+    newsExpiryChecker.start();
+    
+    return server;
+  } catch (error) {
+    console.error('Server başlatma hatası:', error);
+    process.exit(1);
+  }
+};
+
+// Server'ı başlat
+startServer()
+  .then(() => console.log('Server başarıyla başlatıldı'))
+  .catch(err => console.error('Server başlatılamadı:', err));
 
 export default app;
