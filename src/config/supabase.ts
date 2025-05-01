@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
+
 // Çevre değişkenlerini yükle
 dotenv.config();
 

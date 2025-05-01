@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as reportService from '../services/reportService';
 import { NotificationService } from '../services/NotificationService';
+import { supabaseAdmin } from '../config/supabase';
 
 /**
  * Tüm raporları getirir
@@ -325,4 +326,98 @@ export const getReportDetails = async (req: Request, res: Response): Promise<voi
       res.status(500).json({ message: 'Rapor detayları getirilirken bir hata oluştu', error: errorMessage });
     }
   }
+};
+
+/**
+ * Test amaçlı rapor oluşturur
+ * @param req Express Request nesnesi
+ * @param res Express Response nesnesi
+ */
+export const createTestReport = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { reporter_id, reported_id, report_reason, event_id, status = 'pending', admin_notes } = req.body;
+    
+    if (!reporter_id || !reported_id || !report_reason) {
+      res.status(400).json({
+        status: 'error',
+        message: 'reporter_id, reported_id ve report_reason alanları zorunludur'
+      });
+      return;
+    }
+    
+    // Supabase'e rapor kaydı oluştur
+    const { data: report, error } = await supabaseAdmin
+      .from('Reports')
+      .insert({
+        event_id: event_id || null,
+        report_reason,
+        report_date: new Date().toISOString(),
+        status: status || 'pending',
+        admin_notes: admin_notes || null,
+        reporter_id,
+        reported_id,
+        updated_by: null
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Test rapor oluşturma hatası:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Rapor oluşturulurken bir hata meydana geldi: ${error.message}`
+      });
+      return;
+    }
+    
+    // Bildirim oluştur
+    try {
+      const notificationService = new NotificationService();
+      
+      // Admin kullanıcılarına bildirim gönder
+      const { data: reporterData } = await supabaseAdmin
+        .from('Profiles')
+        .select('username, first_name, last_name')
+        .eq('id', reporter_id)
+        .single();
+      
+      const reporterName = reporterData ? 
+        `${reporterData.first_name} ${reporterData.last_name}` : 
+        'Anonim Kullanıcı';
+        
+      await notificationService.notifyAdminsNewReport(
+        report.id,
+        report_reason,
+        reporterName
+      );
+    } catch (notificationError) {
+      console.warn('Rapor bildirimi gönderilirken hata oluştu:', notificationError);
+      // Bu hata ana işlemi etkilemeyecek, sadece logluyoruz
+    }
+    
+    res.status(201).json({
+      status: 'success',
+      message: 'Test rapor başarıyla oluşturuldu',
+      data: {
+        report
+      }
+    });
+  } catch (error: any) {
+    console.error('Rapor oluşturma hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: `Rapor oluşturulurken bir hata meydana geldi: ${error.message}`
+    });
+  }
+};
+
+export default {
+  getAllReports,
+  getReportData,
+  updateReportStatus,
+  updateAdminNotes,
+  banUserFromReport,
+  getReportAdminInfo,
+  getReportDetails,
+  createTestReport
 }; 

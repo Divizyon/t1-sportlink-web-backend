@@ -6,6 +6,7 @@ import eventRoutes from './eventRoutes';
 import newsRoutes from './newsRoutes';
 import reportRoutes from './reportRoutes';
 import securityRoutes from './securityRoutes';
+import announcementRoutes from './announcementRoutes';
 import { authenticate, requireAuth, requireAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -18,6 +19,9 @@ router.use('/auth', authRoutes);
 
 // Sports routes (authenticated for write, public for read)
 router.use('/sports', sportsRoutes);
+
+// Announcement routes (public for read, admin for write)
+router.use('/announcements', announcementRoutes);
 
 // Protected routes (auth required)
 router.use('/user', requireAuth, userRoutes);

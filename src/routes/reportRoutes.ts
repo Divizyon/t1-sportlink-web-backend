@@ -404,4 +404,74 @@ router.get('/:id/admin-info', ReportController.getReportAdminInfo);
  */
 router.get('/:id', ReportController.getReportDetails);
 
+/**
+ * @swagger
+ * /api/reports/test:
+ *   post:
+ *     summary: Test raporu oluştur
+ *     description: Test amaçlı yeni bir rapor oluşturur. Bildirim sistemi testleri için kullanılır.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reporter_id
+ *               - reported_id
+ *               - report_reason
+ *             properties:
+ *               reporter_id:
+ *                 type: string
+ *                 description: Raporu oluşturan kullanıcının ID'si
+ *               reported_id:
+ *                 type: string
+ *                 description: Raporlanan kullanıcının ID'si
+ *               report_reason:
+ *                 type: string
+ *                 description: Rapor nedeni
+ *               event_id:
+ *                 type: integer
+ *                 description: İlgili etkinliğin ID'si (opsiyonel)
+ *               status:
+ *                 type: string
+ *                 enum: [pending, resolved, rejected]
+ *                 default: pending
+ *                 description: Rapor durumu (opsiyonel)
+ *               admin_notes:
+ *                 type: string
+ *                 description: Admin notları (opsiyonel)
+ *     responses:
+ *       201:
+ *         description: Test raporu başarıyla oluşturuldu
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Test rapor başarıyla oluşturuldu
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     report:
+ *                       $ref: '#/components/schemas/Report'
+ *       400:
+ *         description: Geçersiz veri
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post('/test', ReportController.createTestReport);
+
 export default router; 
