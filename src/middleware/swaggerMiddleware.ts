@@ -41,6 +41,7 @@ export const setupSwagger = (app: Express): void => {
         { name: 'Sports', description: 'Spor yönetimi' },
         { name: 'Stats', description: 'İstatistik ve dashboard verileri' },
         { name: 'News Scraper', description: 'Haber scraping işlemleri' },
+        { name: 'Announcements', description: 'Duyuru yönetimi' },
         { name: 'Notifications', description: 'Bildirim yönetimi' },
       ],
       paths: {

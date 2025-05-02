@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import path from 'path';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
 import eventRoutes from './routes/eventRoutes';
@@ -14,12 +15,14 @@ import statisticsRoutes from './routes/statisticsRoutes';
 import newsRoutes from './routes/newsRoutes';
 import newsScraperRoutes from './routes/newsScraperRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import announcementRoutes from './routes/announcementRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
 import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
 import newsExpiryChecker from './utils/newsExpiryChecker';
 import { warmupConnectionPool } from './config/supabase';
+import { setupStorageBuckets } from './config/bucketSetup';
 import { dbConnectionCheck } from './middleware/databaseMiddleware';
 
 // Load environment variables
@@ -70,6 +73,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/news-scraper', newsScraperRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -79,6 +83,9 @@ const startServer = async () => {
   try {
     // Bağlantı havuzunu ısıt
     await warmupConnectionPool();
+    
+    // Storage bucket'ları yapılandır
+    await setupStorageBuckets();
     
     // Sunucuyu başlat
     const server = app.listen(port, () => {

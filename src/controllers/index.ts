@@ -7,6 +7,7 @@ import * as profileController from './ProfileController';
 import * as securityController from './SecurityController';
 import * as sportController from './SportController';
 import * as adminController from './AdminController';
+import * as announcementController from './AnnouncementController';
 
 export {
   authController,
@@ -17,5 +18,6 @@ export {
   profileController,
   securityController,
   sportController,
-  adminController
+  adminController,
+  announcementController
 }; 

@@ -1,7 +1,7 @@
 import express from 'express';
 import { changePassword, getProfile, updateProfile, uploadAvatar } from '../controllers/ProfileController';
 import { protect } from '../middleware/authMiddleware';
-import upload from '../middleware/uploadMiddleware'; // Dosya yükleme middleware'i
+import { uploadImage } from '../middleware/uploadMiddleware'; // Dosya yükleme middleware'i
 
 const router = express.Router();
 
@@ -173,6 +173,6 @@ router.put('/password', changePassword);
  *       401:
  *         description: Unauthorized
  */
-router.post('/avatar', upload.single('avatar'), uploadAvatar); // upload middleware'ini kullanıyoruz
+router.post('/avatar', uploadImage, uploadAvatar); // upload middleware'ini kullanıyoruz
 
 export default router; 

@@ -1,24 +1,70 @@
 import multer from 'multer';
-import { BadRequestError } from '../errors/customErrors';
+import { Request } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { supabaseAdmin } from '../config/supabase';
 
-// Bellekte saklama seçeneğini kullanıyoruz (Supabase'e doğrudan yüklemek için)
+// Multer storage için memory storage kullan
+// Böylece dosyalar önce hafızaya alınır ve sonra Supabase'e yüklenebilir
 const storage = multer.memoryStorage();
 
-// Dosya türü filtresi (sadece resim dosyaları)
-const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  if (file.mimetype.startsWith('image/')) {
+// Filter to accept only images
+const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  
+  if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new BadRequestError('Sadece resim dosyaları yüklenebilir! Desteklenen formatlar: JPG, PNG, GIF, WEBP.'));
+    cb(new Error('Sadece JPEG, PNG, GIF ve WEBP formatında resimler yüklenebilir.'));
   }
 };
 
+// Create multer upload instance with file size limit (5MB)
 const upload = multer({
   storage: storage,
-  fileFilter: fileFilter,
   limits: {
-    fileSize: 1024 * 1024 * 5 // 5 MB limit
-  }
+    fileSize: 5 * 1024 * 1024 // 5MB
+  },
+  fileFilter: fileFilter
 });
 
-export default upload; 
+// Export a middleware for single file upload
+export const uploadImage = upload.single('image');
+
+/**
+ * Dosyayı Supabase Storage'a yükler
+ * @param file Express.Multer.File objesi
+ * @param path Storage içindeki isteğe bağlı alt klasör yolu
+ * @returns {Promise<string>} Yüklenen dosyanın URL'si
+ */
+export const uploadToStorage = async (file: Express.Multer.File, path: string = ''): Promise<string> => {
+  try {
+    // Dosya adını oluştur
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const filePath = path ? `${path}/${fileName}` : fileName;
+
+    // Dosyayı Supabase Storage'a yükle
+    const { data, error } = await supabaseAdmin.storage
+      .from('sportlink-files')
+      .upload(`announcements/${filePath}`, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Dosya yükleme hatası:', error);
+      throw new Error(`Dosya yüklenirken bir hata oluştu: ${error.message}`);
+    }
+
+    // Dosya URL'sini getir
+    const { data: urlData } = supabaseAdmin.storage
+      .from('sportlink-files')
+      .getPublicUrl(`announcements/${filePath}`);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('Dosya yükleme işlemi sırasında hata:', error);
+    throw error;
+  }
+}; 
