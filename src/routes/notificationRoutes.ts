@@ -21,17 +21,22 @@ router.get('/unread-count', protect, notificationController.getUnreadCount);
 
 /**
  * @route PATCH /api/notifications/:id/read
+ * @route PUT /api/notifications/:id/read
  * @description Bildirimi okundu olarak işaretler
  * @access Private
  */
 router.patch('/:id/read', protect, notificationController.markAsRead);
+router.put('/:id/read', protect, notificationController.markAsRead);
+
 
 /**
  * @route PATCH /api/notifications/mark-all-read
+ * @route PUT /api/notifications/mark-all-read
  * @description Tüm bildirimleri okundu olarak işaretler
  * @access Private
  */
 router.patch('/mark-all-read', protect, notificationController.markAllAsRead);
+router.put('/mark-all-read', protect, notificationController.markAllAsRead);
 
 /**
  * @route DELETE /api/notifications/:id
