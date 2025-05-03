@@ -46,7 +46,7 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
     // Kullanıcı başarıyla giriş yaptıysa ve last_sign_in_at verisi varsa
     if (data.user && data.user.last_sign_in_at) {
       // Kullanıcının users tablosunda olup olmadığını kontrol et
-      const { data: existingUser, error: userCheckError } = await supabase
+      const { data: existingUser, error: userCheckError } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('id', data.user.id)
@@ -222,7 +222,7 @@ export const handleOAuthCallback = async (code: string) => {
     }
 
     // Kullanıcının users tablosunda olup olmadığını kontrol et
-    const { data: existingUser, error: userCheckError } = await supabase
+    const { data: existingUser, error: userCheckError } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('id', data.user.id)

@@ -3,12 +3,15 @@ import { NewsScraperService, NewsStatus } from '../services/NewsScraperService';
 import logger from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 import supabaseAdmin from '../utils/supabaseClient';
+import { NotificationTriggerService } from '../services/NotificationTriggerService';
 
 export class NewsScraperController {
   private newsScraperService: NewsScraperService;
+  private notificationTriggerService: NotificationTriggerService;
   
   constructor() {
     this.newsScraperService = new NewsScraperService();
+    this.notificationTriggerService = new NotificationTriggerService();
   }
   
   /**
@@ -171,12 +174,51 @@ export class NewsScraperController {
       
       logger.info('NewsScraperController: Haber durumu güncelleme isteği alındı', { id, status });
       
+      // Haber bilgilerini al
+      const { data: newsData, error: newsError } = await supabaseAdmin
+        .from('News')
+        .select('title')
+        .eq('id', Number(id))
+        .single();
+      
+      if (newsError) {
+        logger.error('Haber bilgileri alınırken hata:', newsError);
+        res.status(404).json({ 
+          status: 'error', 
+          message: 'Haber bulunamadı' 
+        });
+        return;
+      }
+      
       const updatedNews = await this.newsScraperService.updateNewsStatus(Number(id), lowerStatus);
       console.log('Güncelleme yanıtı:', updatedNews);
       
       if (!updatedNews || updatedNews.length === 0) {
         res.status(404).json({ status: 'error', message: 'Haber bulunamadı veya güncellenemedi' });
         return;
+      }
+      
+      // Eğer haber onaylandıysa bildirim gönder
+      if (lowerStatus === 'approved') {
+        try {
+          // Admin kullanıcılarını al
+          const { data: adminUsers } = await supabaseAdmin
+            .from('Profile')
+            .select('id')
+            .eq('role', 'ADMIN');
+          
+          const adminIds = (adminUsers || []).map(admin => admin.id);
+          
+          // Bildirim gönder
+          await this.notificationTriggerService.onNewsApproved(
+            Number(id),
+            newsData.title,
+            adminIds
+          );
+        } catch (notificationError) {
+          // Bildirim gönderme hatası olsa bile işlemi durdurmuyoruz
+          logger.error('Bildirim gönderme hatası:', notificationError);
+        }
       }
       
       res.status(200).json({

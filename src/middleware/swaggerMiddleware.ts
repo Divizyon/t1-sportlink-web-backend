@@ -42,6 +42,7 @@ export const setupSwagger = (app: Express): void => {
         { name: 'Stats', description: 'İstatistik ve dashboard verileri' },
         { name: 'News Scraper', description: 'Haber scraping işlemleri' },
         { name: 'Announcements', description: 'Duyuru yönetimi' },
+        { name: 'Notifications', description: 'Bildirim yönetimi' },
       ],
       paths: {
         '/api/stats/weekly': {
@@ -555,6 +556,260 @@ export const setupSwagger = (app: Express): void => {
                   }
                 }
               },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications': {
+          get: {
+            tags: ['Notifications'],
+            summary: 'Kullanıcı bildirimlerini listele',
+            description: 'Oturum açmış kullanıcının bildirimlerini filtreli bir şekilde listeler',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                in: 'query',
+                name: 'read_status',
+                schema: {
+                  type: 'string',
+                  enum: ['all', 'read', 'unread']
+                },
+                description: 'Bildirim okunma durumu filtresi',
+                default: 'all'
+              },
+              {
+                in: 'query',
+                name: 'limit',
+                schema: {
+                  type: 'integer',
+                  default: 10
+                },
+                description: 'Sayfa başına gösterilecek bildirim sayısı'
+              },
+              {
+                in: 'query',
+                name: 'offset',
+                schema: {
+                  type: 'integer',
+                  default: 0
+                },
+                description: 'Sayfalama için atlanacak bildirim sayısı'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Bildirimler başarıyla getirildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        count: { type: 'integer', example: 5 },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/Notification'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications/unread-count': {
+          get: {
+            tags: ['Notifications'],
+            summary: 'Okunmamış bildirim sayısını al',
+            description: 'Oturum açmış kullanıcının okunmamış bildirim sayısını döndürür',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Okunmamış bildirim sayısı başarıyla getirildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        count: { type: 'integer', example: 3 }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications/{id}/read': {
+          put: {
+            tags: ['Notifications'],
+            summary: 'Bildirimi okundu olarak işaretle',
+            description: 'Belirli bir bildirimi okundu olarak işaretler',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                in: 'path',
+                name: 'id',
+                required: true,
+                schema: {
+                  type: 'integer'
+                },
+                description: 'Okundu olarak işaretlenecek bildirim ID'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Bildirim başarıyla okundu olarak işaretlendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        message: { type: 'string', example: 'Bildirim okundu olarak işaretlendi' },
+                        data: { $ref: '#/components/schemas/Notification' }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '404': { $ref: '#/components/responses/NotFoundError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications/mark-all-read': {
+          put: {
+            tags: ['Notifications'],
+            summary: 'Tüm bildirimleri okundu olarak işaretle',
+            description: 'Oturum açmış kullanıcının tüm bildirimlerini okundu olarak işaretler',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Tüm bildirimler başarıyla okundu olarak işaretlendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        message: { type: 'string', example: 'Tüm bildirimler okundu olarak işaretlendi' },
+                        count: { type: 'integer', example: 5 }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications/{id}': {
+          delete: {
+            tags: ['Notifications'],
+            summary: 'Bildirimi sil',
+            description: 'Belirli bir bildirimi siler',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                in: 'path',
+                name: 'id',
+                required: true,
+                schema: {
+                  type: 'integer'
+                },
+                description: 'Silinecek bildirim ID'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Bildirim başarıyla silindi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        message: { type: 'string', example: 'Bildirim başarıyla silindi' }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '404': { $ref: '#/components/responses/NotFoundError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/notifications/test': {
+          post: {
+            tags: ['Notifications'],
+            summary: 'Test bildirimi oluştur',
+            description: 'Test amaçlı bir bildirim oluşturur (isteğe bağlı olarak user_id belirtilebilir, belirtilmezse oturum açan kullanıcı için oluşturulur)',
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['notification_type', 'content'],
+                    properties: {
+                      user_id: {
+                        type: 'string',
+                        format: 'uuid',
+                        description: 'İsteğe bağlı bildirim gönderilecek kullanıcı ID (belirtilmezse oturum açan kullanıcı için oluşturulur)'
+                      },
+                      notification_type: {
+                        type: 'string',
+                        enum: ['EVENT_INVITATION', 'EVENT_UPDATE', 'FRIEND_REQUEST', 'SYSTEM_NOTIFICATION', 'NEW_MESSAGE'],
+                        description: 'Bildirim tipi'
+                      },
+                      content: {
+                        type: 'string',
+                        description: 'Bildirim içeriği'
+                      },
+                      link: {
+                        type: 'string',
+                        description: 'Bildirime tıklandığında yönlendirilecek bağlantı'
+                      },
+                      event_id: {
+                        type: 'integer',
+                        description: 'İlgili etkinlik ID (varsa)'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              '201': {
+                description: 'Test bildirimi başarıyla oluşturuldu',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        status: { type: 'string', example: 'success' },
+                        message: { type: 'string', example: 'Test bildirimi oluşturuldu' },
+                        data: { $ref: '#/components/schemas/Notification' }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
               '500': { $ref: '#/components/responses/InternalServerError' }
             }
           }
@@ -1239,6 +1494,108 @@ export const setupSwagger = (app: Express): void => {
                 },
                 period: { type: 'integer', description: 'Değişimin hesaplandığı gün sayısı', example: 30 }
              }
+          },
+          NotificationType: {
+            type: 'string',
+            enum: [
+              'new_report',
+              'new_event',
+              'event_updated',
+              'user_watched',
+              'user_inactive',
+              'user_active',
+              'new_achievement',
+              'pending_approval',
+              'news_approved',
+              'system_alert'
+            ],
+            description: 'Bildirim türlerini tanımlar'
+          },
+          Notification: {
+            type: 'object',
+            required: ['notification_type', 'content', 'read_status', 'user_id'],
+            properties: {
+              id: {
+                type: 'integer',
+                description: 'Bildirimin benzersiz tanımlayıcısı'
+              },
+              notification_type: {
+                $ref: '#/components/schemas/NotificationType',
+                description: 'Bildirimin türü'
+              },
+              content: {
+                type: 'string',
+                description: 'Bildirim içeriği'
+              },
+              read_status: {
+                type: 'boolean',
+                description: 'Bildirimin okunma durumu'
+              },
+              created_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Bildirimin oluşturulma tarihi'
+              },
+              event_id: {
+                type: 'integer',
+                description: 'İlişkili etkinlik ID (varsa)'
+              },
+              user_id: {
+                type: 'string',
+                description: 'Bildirimin hedef kullanıcı ID\'si'
+              },
+              link: {
+                type: 'string',
+                description: 'Bildirimin yönlendireceği link (opsiyonel)'
+              }
+            }
+          },
+          CreateNotificationParams: {
+            type: 'object',
+            required: ['notification_type', 'content', 'user_id'],
+            properties: {
+              notification_type: {
+                $ref: '#/components/schemas/NotificationType',
+                description: 'Bildirimin türü'
+              },
+              content: {
+                type: 'string',
+                description: 'Bildirim içeriği'
+              },
+              event_id: {
+                type: 'integer',
+                description: 'İlişkili etkinlik ID (varsa)'
+              },
+              user_id: {
+                type: 'string',
+                description: 'Bildirimin hedef kullanıcı ID\'si'
+              },
+              link: {
+                type: 'string',
+                description: 'Bildirimin yönlendireceği link (opsiyonel)'
+              }
+            }
+          },
+          ListNotificationsParams: {
+            type: 'object',
+            properties: {
+              user_id: {
+                type: 'string',
+                description: 'Bildirimleri filtrelemek için kullanıcı ID\'si'
+              },
+              read_status: {
+                type: 'boolean',
+                description: 'Bildirim okunma durumuna göre filtreleme'
+              },
+              limit: {
+                type: 'integer',
+                description: 'Sayfalandırma için limit değeri'
+              },
+              offset: {
+                type: 'integer',
+                description: 'Sayfalandırma için başlangıç değeri'
+              }
+            }
           }
         },
       },

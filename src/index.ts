@@ -14,6 +14,7 @@ import statsRoutes from './routes/statsRoutes';
 import statisticsRoutes from './routes/statisticsRoutes';
 import newsRoutes from './routes/newsRoutes';
 import newsScraperRoutes from './routes/newsScraperRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import announcementRoutes from './routes/announcementRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
@@ -71,6 +72,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/news-scraper', newsScraperRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 
 // Error handling middleware

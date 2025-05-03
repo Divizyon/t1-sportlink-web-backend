@@ -6,12 +6,12 @@ export const SportsController = {
   async getAllSports(req: Request, res: Response, next: NextFunction): Promise<void> {
     logger.info('SportsController: Tüm spor kategorileri isteği alındı.');
     try {
-      const sports = await SportsService.getAllSports();
+      const Sports = await SportsService.getAllSports();
 
       res.status(200).json({
         status: 'success',
         message: 'Spor kategorileri başarıyla getirildi.',
-        data: sports
+        data: Sports
       });
 
     } catch (error) {

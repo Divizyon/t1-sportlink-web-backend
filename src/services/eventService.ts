@@ -3,6 +3,7 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import { parseISO, addHours, isBefore, isAfter, startOfDay, endOfDay, format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import logger from '../utils/logger';
+import { BadRequestError, NotFoundError } from '../errors/customErrors';
 
 const DEFAULT_TIMEZONE = 'Europe/Istanbul';
 
@@ -116,7 +117,7 @@ export const findEventById = async (id: string): Promise<any> => {
 
 export const isUserAdmin = async (userId: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .select('role')
       .eq('id', userId)
@@ -488,6 +489,9 @@ export const getAllEvents = async () => {
   try {
     logger.info('Tüm etkinlikler getiriliyor');
     
+    // Özellikle supabaseAdmin kullandığımızı vurgula
+    logger.info('Service role key ile sorgu yapılıyor (RLS bypass)');
+    
     const { data, error } = await supabaseAdmin
       .from('Events')
       .select(`
@@ -504,7 +508,12 @@ export const getAllEvents = async () => {
       .order('event_date', { ascending: true });
     
     if (error) {
-      logger.error(`Etkinlikleri getirme hatası: ${error.message}`, error);
+      logger.error(`Etkinlikleri getirme hatası: ${error.message}`, { 
+        error: JSON.stringify(error, null, 2),
+        code: error.code,
+        details: error.details || 'Detay yok',
+        hint: error.hint || 'İpucu yok'
+      });
       throw new Error('Etkinlikler getirilemedi');
     }
     
@@ -772,7 +781,7 @@ export const deleteEvent = async (
 
 export const getEventDetails = async (eventId: string) => {
   try {
-    const { data: event, error } = await supabase
+    const { data: event, error } = await supabaseAdmin
       .from('Events')
       .select(`
         *,
@@ -811,7 +820,7 @@ export const getEventDetails = async (eventId: string) => {
 export const joinEvent = async (eventId: string, userId: string, role: string = 'PARTICIPANT') => {
   try {
     // Önce etkinlik detaylarını ve katılımcı sayısını kontrol et
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await supabaseAdmin
       .from('Events')
       .select(`
         max_participants,
@@ -833,7 +842,7 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
     }
 
     // Katılımcı ekle
-    const { error: participantError } = await supabase
+    const { error: participantError } = await supabaseAdmin
       .from('Event_Participants')
       .insert({
         event_id: eventId,
