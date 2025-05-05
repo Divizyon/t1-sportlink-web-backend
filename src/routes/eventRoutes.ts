@@ -14,6 +14,57 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/events/counts:
+ *   get:
+ *     summary: Farklı durumlardaki etkinliklerin sayılarını döndürür
+ *     description: PENDING, ACTIVE, REJECTED, COMPLETED vb. tüm etkinlik durumlarının sayısını verir
+ *     tags: [Events]
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Belirli bir kullanıcının etkinliklerini saymak için kullanıcı ID'si
+ *     responses:
+ *       200:
+ *         description: Başarılı yanıt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     pending:
+ *                       type: integer
+ *                       description: Onay bekleyen etkinlik sayısı
+ *                     today:
+ *                       type: integer
+ *                       description: Bugünkü aktif etkinlik sayısı
+ *                     upcoming:
+ *                       type: integer
+ *                       description: Gelecekteki aktif etkinlik sayısı
+ *                     rejected:
+ *                       type: integer
+ *                       description: Reddedilen etkinlik sayısı
+ *                     completed:
+ *                       type: integer
+ *                       description: Tamamlanan etkinlik sayısı
+ *                     total:
+ *                       type: integer
+ *                       description: Toplam etkinlik sayısı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get('/counts', enforceDbConnection, EventController.getEventCounts);
+
+/**
+ * @swagger
  * /api/events/today:
  *   get:
  *     summary: Bugünkü aktif etkinliklerin listesini döndürür
@@ -408,5 +459,265 @@ router.put('/:id', protect, EventController.updateEvent);
  *         description: Sunucu hatası
  */
 router.delete('/:id', protect, EventController.deleteEvent);
+
+/**
+ * @swagger
+ * /api/events/status/pending:
+ *   get:
+ *     summary: Onay bekleyen etkinlikleri listeler
+ *     description: Onay bekleyen (pending) durumundaki etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Belirli bir kullanıcının etkinliklerini filtrelemek için kullanıcı ID (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Onay bekleyen etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 3
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 2
+ *                 totalEvents:
+ *                   type: integer
+ *                   example: 15
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/status/pending', protect, EventController.getPendingEvents);
+
+/**
+ * @swagger
+ * /api/events/status/active:
+ *   get:
+ *     summary: Aktif etkinlikleri listeler
+ *     description: Aktif (active) durumundaki etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Belirli bir kullanıcının etkinliklerini filtrelemek için kullanıcı ID (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Aktif etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 8
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 3
+ *                 totalEvents:
+ *                   type: integer
+ *                   example: 25
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/status/active', protect, EventController.getActiveEvents);
+
+/**
+ * @swagger
+ * /api/events/status/rejected:
+ *   get:
+ *     summary: Reddedilen etkinlikleri listeler
+ *     description: Reddedilen (rejected) durumundaki etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Belirli bir kullanıcının etkinliklerini filtrelemek için kullanıcı ID (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Reddedilen etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 2
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 1
+ *                 totalEvents:
+ *                   type: integer
+ *                   example: 2
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/status/rejected', protect, EventController.getRejectedEvents);
+
+/**
+ * @swagger
+ * /api/events/status/completed:
+ *   get:
+ *     summary: Tamamlanan etkinlikleri listeler
+ *     description: Tamamlanan (completed) durumundaki etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Belirli bir kullanıcının etkinliklerini filtrelemek için kullanıcı ID (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Tamamlanan etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 5
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 2
+ *                 totalEvents:
+ *                   type: integer
+ *                   example: 12
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/status/completed', protect, EventController.getCompletedEvents);
 
 export default router; 
