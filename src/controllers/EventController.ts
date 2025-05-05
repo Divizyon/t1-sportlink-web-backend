@@ -5,6 +5,8 @@ import logger from '../utils/logger';
 import { EventValidationSchema } from '../models/Event';
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { NotificationService } from '../services/NotificationService';
+import { SportsService } from '../services/SportsService';
+import { SecurityLogService } from '../services/securityLogService';
 
 export const updateEventStatus = async (req: Request, res: Response) => {
   try {
@@ -25,19 +27,57 @@ export const updateEventStatus = async (req: Request, res: Response) => {
     console.log(`Etkinlik durumu güncelleme isteği: eventId=${id}, status=${status}`);
     
     try {
-      // Status validasyonu 
+      // Status şemasını doğrula
       const statusValidation = UpdateEventStatusSchema.safeParse({ status });
       if (!statusValidation.success) {
         return res.status(400).json({
           status: 'error',
-          message: 'Geçersiz etkinlik durumu.'
+          message: `Geçersiz durum: ${statusValidation.error.message}`
         });
       }
+      
+      // Etkinliği bul
+      const event = await eventService.findEventById(id);
+      if (!event) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Etkinlik bulunamadı'
+        });
+      }
+      
+      // Önceki durum
+      const oldStatus = event.status;
       
       // Etkinlik durumunu güncelle
       const updatedEvent = await eventService.updateEventStatus(id, status, userId);
       
-      console.log("Etkinlik durumu güncellendi:", updatedEvent);
+      // Admin bilgilerini al
+      const { data: adminData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      
+      const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
+      const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+      
+      // IP adresi al
+      const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      
+      // Log oluştur
+      await SecurityLogService.createLog({
+        admin_id: userId,
+        admin_username: adminName,
+        type: 'event_status_update',
+        ip_address: ip,
+        details: {
+          event_id: id,
+          title: event.title,
+          old_status: oldStatus,
+          new_status: status
+        },
+        action: `Etkinlik durumu: ${oldStatus} → ${status} / ${adminEmail} / etkinlik: ${event.title} (#${id})`
+      });
       
       res.status(200).json({
         status: 'success',
@@ -53,13 +93,6 @@ export const updateEventStatus = async (req: Request, res: Response) => {
         });
       }
       
-      if (error instanceof EventPermissionError) {
-        return res.status(403).json({
-          status: 'error',
-          message: error.message
-        });
-      }
-      
       if (error instanceof EventStatusError) {
         return res.status(400).json({
           status: 'error',
@@ -67,8 +100,8 @@ export const updateEventStatus = async (req: Request, res: Response) => {
         });
       }
       
-      if (error instanceof EventValidationError) {
-        return res.status(400).json({
+      if (error instanceof EventPermissionError) {
+        return res.status(403).json({
           status: 'error',
           message: error.message
         });
@@ -190,6 +223,44 @@ export const createEvent = async (req: Request, res: Response) => {
       try {
         const newEvent = await eventService.createEvent(newEventData);
         logger.info("Etkinlik başarıyla oluşturuldu:", newEvent);
+
+        // Admin bilgilerini al
+        const { data: adminData } = await supabaseAdmin
+          .from('users')
+          .select('email, first_name, last_name')
+          .eq('id', userId)
+          .single();
+        
+        const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
+        const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+        
+        // IP adresi al
+        const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+        
+        // Spor adını al
+        let sportName = '';
+        if (newEventData.sport_id) {
+          try {
+            const sport = await SportsService.getSportById(newEventData.sport_id);
+            sportName = sport?.name || 'Bilinmeyen Spor';
+          } catch (error) {
+            logger.error('Spor adı alınırken hata:', error);
+          }
+        }
+        
+        // Log oluştur
+        await SecurityLogService.createLog({
+          admin_id: userId,
+          admin_username: adminName,
+          type: 'event_create',
+          ip_address: ip,
+          details: {
+            event_id: newEvent.id,
+            title: newEvent.title,
+            sport_name: sportName
+          },
+          action: `Etkinlik oluşturuldu / ${adminEmail} / etkinlik: ${newEvent.title} (#${newEvent.id}) / spor: ${sportName}`
+        });
 
         // Etkinlik oluşturulduğunda adminlere bildirim gönder
         try {
@@ -457,8 +528,130 @@ export const updateEvent = async (req: Request, res: Response) => {
     }
     
     try {
+      // Önce mevcut etkinlik bilgilerini al
+      const existingEvent = await eventService.findEventById(id);
+      if (!existingEvent) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Etkinlik bulunamadı'
+        });
+      }
+      
+      // Değişen alanları ve değerleri tespit et
+      const updatedFields: string[] = [];
+      const changedValues: Record<string, { old: any; new: any }> = {};
+      
+      for (const key in req.body) {
+        if (existingEvent[key] !== req.body[key]) {
+          updatedFields.push(key);
+          changedValues[key] = {
+            old: existingEvent[key],
+            new: req.body[key]
+          };
+        }
+      }
+      
       // Etkinliği güncelle
       const updatedEvent = await eventService.updateEvent(id, req.body, userId);
+      
+      // Admin bilgilerini al
+      const { data: adminData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      
+      const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
+      const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+      
+      // IP adresi al
+      const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      
+      // Sport ID değiştiyse spor adını da al
+      let sportName = '';
+      if (updatedFields.includes('sport_id') && req.body.sport_id) {
+        try {
+          const sport = await SportsService.getSportById(req.body.sport_id);
+          sportName = sport?.name || 'Bilinmeyen Spor';
+          
+          // Eski spor adını da al
+          const oldSport = await SportsService.getSportById(existingEvent.sport_id);
+          const oldSportName = oldSport?.name || 'Bilinmeyen Spor';
+          changedValues['sport_id'] = {
+            old: oldSportName,
+            new: sportName
+          };
+        } catch (error) {
+          logger.error('Spor adı alınırken hata:', error);
+        }
+      }
+      
+      // Log oluştur - Detaylı formatta
+      let logAction = `Etkinlik güncellendi / ${adminEmail} / etkinlik: ${updatedEvent.title} (#${id})`;
+      
+      // Değişen alan sayısına göre action string'ini güncelle
+      if (updatedFields.length > 0) {
+        // Türkçe alan adları için çeviri tablosu
+        const fieldNameTranslations: Record<string, string> = {
+          title: "Başlık",
+          description: "Açıklama",
+          location_name: "Konum",
+          event_date: "Tarih",
+          start_time: "Başlangıç saati",
+          end_time: "Bitiş saati",
+          max_participants: "Kapasite",
+          sport_id: "Spor türü", 
+          status: "Durum",
+          image_url: "Resim"
+        };
+        
+        // Değişiklikleri detaylı formatta hazırla
+        const detailedChanges = updatedFields.map(field => {
+          const fieldName = fieldNameTranslations[field] || field;
+          
+          // sport_id için özel işlem - spor adlarını göster
+          if (field === 'sport_id' && changedValues[field]) {
+            return `${fieldName}: ${changedValues[field].old} → ${changedValues[field].new}`;
+          }
+          
+          // Diğer alanlar için normal değişim bilgisi
+          const oldValue = changedValues[field]?.old !== undefined ? changedValues[field].old : 'boş';
+          const newValue = changedValues[field]?.new !== undefined ? changedValues[field].new : 'boş';
+          
+          // Uzun içeriklerde kısaltma yap
+          const formatValue = (value: any): string => {
+            if (typeof value === 'string' && value.length > 20) {
+              return value.substring(0, 17) + '...';
+            }
+            return String(value);
+          };
+          
+          return `${fieldName}: ${formatValue(oldValue)} → ${formatValue(newValue)}`;
+        });
+        
+        // 3'ten fazla alan değiştiyse ilk 3'ünü detaylı göster, diğerlerini say
+        if (updatedFields.length > 3) {
+          logAction += ` • ${updatedFields.length} alan değişti • ${detailedChanges.slice(0, 3).join(" • ")}...`;
+        } else {
+          logAction += ` • ${detailedChanges.join(" • ")}`;
+        }
+      }
+      
+      // Log kaydı oluştur
+      await SecurityLogService.createLog({
+        admin_id: userId,
+        admin_username: adminName,
+        type: 'event_update',
+        ip_address: ip,
+        details: {
+          event_id: id,
+          title: updatedEvent.title,
+          updated_fields: updatedFields,
+          changed_values: changedValues,
+          sport_name: sportName || undefined
+        },
+        action: logAction
+      });
       
       // Etkinlik güncellendiğinde adminlere bildirim gönder
       try {
@@ -547,8 +740,42 @@ export const deleteEvent = async (req: Request, res: Response) => {
     logger.info(`Etkinlik silme isteği: eventId=${id}, userId=${userId}`);
     
     try {
+      // Etkinlik bilgilerini al (silmeden önce)
+      const event = await eventService.findEventById(id);
+      if (!event) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Etkinlik bulunamadı'
+        });
+      }
+      
       // Etkinliği sil
       const result = await eventService.deleteEvent(id, userId);
+      
+      // Admin bilgilerini al
+      const { data: adminData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      
+      const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
+      const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+      
+      // Log oluştur
+      const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      
+      await SecurityLogService.createLog({
+        admin_id: userId,
+        admin_username: adminName,
+        type: 'event_delete',
+        ip_address: ip,
+        details: {
+          event_id: id,
+          title: event.title
+        },
+        action: `Etkinlik silindi / ${adminEmail} / etkinlik: ${event.title} (#${id})`
+      });
       
       logger.info(`Etkinlik silindi: ${id}`);
       
