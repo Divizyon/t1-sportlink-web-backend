@@ -527,19 +527,54 @@ export const getAllEvents = async () => {
 
 /**
  * Bugünün etkinliklerini getiren fonksiyon
- * @returns Bugünkü etkinlik listesi frontend formatında
+ * @param userId Kullanıcı ID'si (opsiyonel)
+ * @param page Sayfa numarası (varsayılan: 1)
+ * @param limit Sayfa başına kayıt sayısı (varsayılan: 10)
+ * @returns Sayfalanmış bugünkü etkinlik listesi
  */
-export const getTodayEvents = async (userId?: string): Promise<any[]> => {
+export const getTodayEvents = async (
+  userId?: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<{
+  events: any[];
+  totalEvents: number;
+  totalPages: number;
+}> => {
   try {
     // Bugünün başlangıç ve bitiş zamanlarını al
     const today = new Date();
     const startOfToday = startOfDay(today);
     const endOfToday = endOfDay(today);
     
+    // Sayfalama için offset hesapla
+    const offset = (page - 1) * limit;
+    
     logger.info('Bugünün etkinlikleri alınıyor', {
       startOfToday: startOfToday.toISOString(),
-      endOfToday: endOfToday.toISOString()
+      endOfToday: endOfToday.toISOString(),
+      page,
+      limit,
+      offset
     });
+
+    // Önce toplam etkinlik sayısını öğrenmek için count sorgusu yap
+    const { count, error: countError } = await supabaseAdmin
+      .from('Events')
+      .select('*', { count: 'exact', head: true })
+      .gte('event_date', startOfToday.toISOString())
+      .lte('event_date', endOfToday.toISOString())
+      .eq('status', EventStatus.ACTIVE);
+      
+    if (countError) {
+      logger.error('Bugünün etkinlik sayısı alınırken hata oluştu:', countError);
+      throw new Error('Bugünün etkinlikleri sayılırken bir hata oluştu.');
+    }
+    
+    const totalEvents = count || 0;
+    const totalPages = Math.ceil(totalEvents / limit);
+    
+    logger.info(`Bugün için toplam ${totalEvents} etkinlik bulundu, ${totalPages} sayfa`);
 
     // Bugünün etkinliklerini getir - tüm ilişkileri spesifik olarak belirt
     const { data: events, error } = await supabaseAdmin
@@ -557,7 +592,9 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
       `)
       .gte('event_date', startOfToday.toISOString())
       .lte('event_date', endOfToday.toISOString())
-      .eq('status', EventStatus.ACTIVE);
+      .eq('status', EventStatus.ACTIVE)
+      .order('start_time', { ascending: true })
+      .range(offset, offset + limit - 1);
     
     if (error) {
       logger.error('Bugünün etkinlikleri alınırken hata oluştu:', error);
@@ -565,10 +602,16 @@ export const getTodayEvents = async (userId?: string): Promise<any[]> => {
     }
 
     // Verileri frontend formatına dönüştür
-    if (!events) return [];
+    if (!events) return { events: [], totalEvents: 0, totalPages: 0 };
     
     // Standart formatta tüm etkinlikleri döndür
-    return events.map(event => formatEvent(event));
+    const formattedEvents = events.map(event => formatEvent(event));
+    
+    return {
+      events: formattedEvents,
+      totalEvents,
+      totalPages
+    };
   } catch (error) {
     logger.error('Bugünün etkinlikleri alınırken beklenmeyen bir hata oluştu:', error);
     throw new Error('Bugünün etkinlikleri alınırken bir hata oluştu.');
@@ -860,6 +903,248 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
     return { success: true };
   } catch (error) {
     logger.error('Etkinliğe katılım sırasında hata:', error);
+    throw error;
+  }
+};
+
+interface PaginationOptions {
+  page: number;
+  limit: number;
+  userId?: string;
+}
+
+interface PaginatedEvents {
+  events: any[];
+  totalEvents: number;
+  totalPages: number;
+}
+
+export const getEventsByStatus = async (
+  status: string,
+  options: PaginationOptions
+): Promise<PaginatedEvents> => {
+  try {
+    const { page, limit, userId } = options;
+    const offset = (page - 1) * limit;
+    
+    // Status değerini büyük harfe çevir (veritabanında büyük harflerle tutuluyor)
+    const uppercaseStatus = status.toUpperCase();
+    logger.info(`${status} durumundaki etkinlikler sorgulanıyor. Veritabanı formatında: ${uppercaseStatus}`);
+    
+    // Sorgu oluşturucu - supabaseAdmin kullan (RLS bypass)
+    let query = supabaseAdmin
+      .from('Events')
+      .select('*, sport:Sports!Events_sport_id_fkey(name), creator:users!Events_creator_id_fkey(first_name, last_name), participants:Event_Participants(user_id)', { count: 'exact' })
+      .eq('status', uppercaseStatus) // Büyük harfli status ile karşılaştır
+      .order('created_at', { ascending: false });
+    
+    // Eğer userId belirtilmişse, o kullanıcıya ait etkinlikleri filtrele
+    if (userId) {
+      query = query.eq('creator_id', userId);
+    }
+    
+    // Sayfalama uygula
+    query = query.range(offset, offset + limit - 1);
+    
+    // Sorguyu çalıştır
+    const { data, error, count } = await query;
+    
+    if (error) {
+      logger.error(`${status} durumundaki etkinlikler alınırken hata:`, error);
+      throw error;
+    }
+    
+    // Toplam sayfa sayısını hesapla
+    const totalEvents = count || 0;
+    const totalPages = Math.ceil(totalEvents / limit);
+    
+    logger.info(`${status} durumundaki etkinlikler başarıyla alındı. Toplam: ${totalEvents}, Sayfa: ${page}/${totalPages}`);
+    
+    // Etkinlik verilerini formatlayarak dön
+    const formattedEvents = data.map(event => ({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      event_date: event.event_date,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      location_name: event.location_name,
+      location_latitude: event.location_latitude,
+      location_longitude: event.location_longitude,
+      max_participants: event.max_participants,
+      status: event.status,
+      created_at: event.created_at,
+      updated_at: event.updated_at,
+      sport: event.sport,
+      creator: event.creator,
+      participant_count: event.participants ? event.participants.length : 0
+    }));
+    
+    return {
+      events: formattedEvents,
+      totalEvents,
+      totalPages
+    };
+  } catch (error) {
+    logger.error(`${status} durumundaki etkinlikler alınırken beklenmeyen hata:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Başlangıç zamanına 30 dakika veya daha az kalmış ve hala PENDING durumunda olan etkinlikleri 
+ * otomatik olarak REJECTED durumuna geçirir.
+ */
+export const autoRejectPendingEvents = async (): Promise<void> => {
+  try {
+    const now = new Date();
+    // Şimdiden 30 dakika sonrasını hesapla
+    const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+    
+    logger.info(`Başlangıç zamanına 30 dakika kalan PENDING etkinlikleri otomatik reddetme işlemi başlatıldı. Şu anki zaman: ${now.toISOString()}`);
+    logger.info(`Kontrol edilen zaman aralığı: ${now.toISOString()} - ${thirtyMinutesFromNow.toISOString()}`);
+    
+    // PENDING durumunda olan ve başlangıç zamanı şimdiden 30 dakika içinde olan etkinlikleri bul
+    const { data, error } = await supabaseAdmin
+      .from('Events')
+      .select('id, title, start_time')
+      .eq('status', EventStatus.PENDING)
+      .gte('start_time', now.toISOString()) // Şimdi veya daha sonra başlayacak
+      .lt('start_time', thirtyMinutesFromNow.toISOString()); // 30 dakika içinde başlayacak
+    
+    if (error) {
+      logger.error('Otomatik reddedilecek etkinlikleri bulma hatası:', error);
+      throw new Error('Otomatik reddedilecek etkinlikler bulunurken bir hata oluştu.');
+    }
+    
+    if (!data || data.length === 0) {
+      logger.info('Otomatik reddedilecek etkinlik bulunamadı.');
+      return;
+    }
+    
+    logger.info(`${data.length} adet etkinlik otomatik olarak reddedilecek:`, 
+      data.map(e => ({ id: e.id, title: e.title, start_time: e.start_time })));
+    
+    // Bu etkinlikleri REJECTED olarak işaretle
+    const { error: updateError } = await supabaseAdmin
+      .from('Events')
+      .update({ 
+        status: EventStatus.REJECTED,
+        updated_at: now.toISOString(),
+        rejected_at: now.toISOString(),
+      })
+      .in('id', data.map(e => e.id));
+    
+    if (updateError) {
+      logger.error('Etkinlikleri otomatik reddetme hatası:', updateError);
+      throw new Error('Etkinlikler otomatik olarak reddedilirken bir hata oluştu.');
+    }
+    
+    logger.info(`${data.length} adet etkinlik başarıyla otomatik olarak reddedildi.`);
+  } catch (error) {
+    logger.error('Etkinlikleri otomatik reddetme işlemi sırasında beklenmeyen hata:', error);
+    throw error;
+  }
+};
+
+/**
+ * Farklı durumlardaki etkinliklerin sayılarını getiren fonksiyon
+ * @param userId Opsiyonel. Belirli bir kullanıcının etkinliklerini saymak için
+ * @returns Farklı durumlardaki etkinlik sayıları
+ */
+export const getEventCounts = async (userId?: string): Promise<{
+  pending: number;
+  today: number;
+  upcoming: number; // Bu aslında tüm aktif etkinlikleri temsil ediyor
+  rejected: number;
+  completed: number;
+  total: number;
+}> => {
+  try {
+    logger.info('Etkinlik sayıları getiriliyor');
+    
+    // Sorgu temelini oluşturan yardımcı fonksiyon
+    const createBaseQuery = () => {
+      let query = supabaseAdmin.from('Events').select('*', { count: 'exact' });
+      
+      // Kullanıcı ID'si belirtilmişse sorguya ekle
+      if (userId) {
+        query = query.eq('creator_id', userId);
+      }
+      
+      return query;
+    };
+    
+    // Bugünün başlangıç ve bitiş zamanlarını al
+    const today = new Date();
+    const startOfToday = startOfDay(today);
+    const endOfToday = endOfDay(today);
+    
+    // 1. Onay bekleyen etkinlikler (PENDING)
+    const { count: pending, error: pendingError } = await createBaseQuery()
+      .eq('status', EventStatus.PENDING);
+    
+    if (pendingError) {
+      logger.error('Onay bekleyen etkinlik sayısı alınamadı:', pendingError);
+      throw new Error('Onay bekleyen etkinlik sayısı alınamadı');
+    }
+    
+    // 2. Bugünkü aktif etkinlikler
+    const { count: todayCount, error: todayError } = await createBaseQuery()
+      .eq('status', EventStatus.ACTIVE)
+      .gte('event_date', startOfToday.toISOString())
+      .lte('event_date', endOfToday.toISOString());
+    
+    if (todayError) {
+      logger.error('Bugünkü etkinlik sayısı alınamadı:', todayError);
+      throw new Error('Bugünkü etkinlik sayısı alınamadı');
+    }
+    
+    // 3. Tüm aktif etkinlikler (backend kısmında "upcoming" olarak etiketlenmiş)
+    const { count: activeCount, error: activeError } = await createBaseQuery()
+      .eq('status', EventStatus.ACTIVE);
+    
+    if (activeError) {
+      logger.error('Aktif etkinlik sayısı alınamadı:', activeError);
+      throw new Error('Aktif etkinlik sayısı alınamadı');
+    }
+    
+    // 4. Reddedilen etkinlikler (REJECTED)
+    const { count: rejectedCount, error: rejectedError } = await createBaseQuery()
+      .eq('status', EventStatus.REJECTED);
+    
+    if (rejectedError) {
+      logger.error('Reddedilen etkinlik sayısı alınamadı:', rejectedError);
+      throw new Error('Reddedilen etkinlik sayısı alınamadı');
+    }
+    
+    // 5. Tamamlanan etkinlikler (COMPLETED)
+    const { count: completedCount, error: completedError } = await createBaseQuery()
+      .eq('status', EventStatus.COMPLETED);
+    
+    if (completedError) {
+      logger.error('Tamamlanan etkinlik sayısı alınamadı:', completedError);
+      throw new Error('Tamamlanan etkinlik sayısı alınamadı');
+    }
+    
+    // 6. Toplam etkinlik sayısı
+    const { count: totalCount, error: totalError } = await createBaseQuery();
+    
+    if (totalError) {
+      logger.error('Toplam etkinlik sayısı alınamadı:', totalError);
+      throw new Error('Toplam etkinlik sayısı alınamadı');
+    }
+    
+    return {
+      pending: pending || 0,
+      today: todayCount || 0,
+      upcoming: activeCount || 0, // UI'da "Gelecek" olarak gösterilse de aslında tüm aktif etkinlikleri temsil ediyor
+      rejected: rejectedCount || 0,
+      completed: completedCount || 0,
+      total: totalCount || 0
+    };
+  } catch (error) {
+    logger.error('Etkinlik sayıları alınırken hata oluştu:', error);
     throw error;
   }
 }; 

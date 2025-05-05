@@ -19,7 +19,7 @@ import announcementRoutes from './routes/announcementRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
-import { scheduleCompletedEventsJob } from './jobs/completedEventsJob';
+import { scheduleCompletedEventsJob, scheduleAutoRejectEventsJob } from './jobs/completedEventsJob';
 import newsExpiryChecker from './utils/newsExpiryChecker';
 import { warmupConnectionPool } from './config/supabase';
 import { setupStorageBuckets } from './config/bucketSetup';
@@ -94,6 +94,7 @@ const startServer = async () => {
       
       // Zamanlayıcı işlerini başlat
       scheduleCompletedEventsJob();
+      scheduleAutoRejectEventsJob();
       console.log('Scheduled jobs started');
     });
     

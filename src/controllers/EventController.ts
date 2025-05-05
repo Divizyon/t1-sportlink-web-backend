@@ -354,6 +354,21 @@ export const getEventById = async (req: Request, res: Response) => {
  *     summary: Bugünkü aktif etkinliklerin listesini döndürür
  *     description: Bugüne ait aktif etkinliklerin listesini frontend formatında döndürür. Token olmadan da kullanılabilir.
  *     tags: [Events]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         required: false
+ *         description: Sayfa numarası (opsiyonel, varsayılan değer 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         required: false
+ *         description: Sayfa başına etkinlik sayısı (opsiyonel, varsayılan değer 10)
  *     responses:
  *       200:
  *         description: Başarılı yanıt
@@ -365,6 +380,18 @@ export const getEventById = async (req: Request, res: Response) => {
  *                 status:
  *                   type: string
  *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 5
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 2
+ *                 totalEvents:
+ *                   type: integer
+ *                   example: 15
  *                 data:
  *                   type: array
  *                   items:
@@ -386,16 +413,24 @@ export const getTodayEvents = async (req: Request, res: Response) => {
   try {
     logger.info('Bugünkü etkinlikler istendi');
     
+    // Sayfalama parametrelerini al (varsayılan: sayfa 1, sayfa başına 10 öğe)
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
     // Kullanıcı ID'si varsa al (req.user auth middleware ile set edilmiş olmalı)
     const userId = req.user?.id;
-    logger.info(`Kullanıcı durumu: ${userId ? 'Giriş yapmış' : 'Giriş yapmamış'}`);
+    logger.info(`Kullanıcı durumu: ${userId ? 'Giriş yapmış' : 'Giriş yapmamış'}, Sayfa: ${page}, Limit: ${limit}`);
     
-    // Bugünkü etkinlikleri getir
-    const events = await eventService.getTodayEvents(userId);
+    // Bugünkü etkinlikleri getir (sayfalama ile)
+    const todayEventsData = await eventService.getTodayEvents(userId, page, limit);
     
     res.status(200).json({
       status: 'success',
-      data: events
+      results: todayEventsData.events.length,
+      page,
+      totalPages: todayEventsData.totalPages,
+      totalEvents: todayEventsData.totalEvents,
+      data: todayEventsData.events
     });
   } catch (error) {
     logger.error('Bugünkü etkinlikleri getirirken hata oluştu:', error);
@@ -544,6 +579,179 @@ export const deleteEvent = async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Etkinlik silinirken bir hata oluştu.'
+    });
+  }
+};
+
+export const getPendingEvents = async (req: Request, res: Response) => {
+  try {
+    // Sayfalama parametrelerini al (varsayılan: sayfa 1, sayfa başına 10 öğe)
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    // Kullanıcı ID'sini al (opsiyonel filtre olarak)
+    const userId = req.query.userId as string || undefined;
+    
+    logger.info(`Onay bekleyen etkinlikler isteniyor. Sayfa: ${page}, Limit: ${limit}`);
+    
+    const pendingEvents = await eventService.getEventsByStatus('pending', {
+      page,
+      limit,
+      userId,
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      results: pendingEvents.events.length,
+      page,
+      totalPages: pendingEvents.totalPages,
+      totalEvents: pendingEvents.totalEvents,
+      data: {
+        events: pendingEvents.events
+      }
+    });
+  } catch (error) {
+    logger.error('Onay bekleyen etkinlikler alınırken hata:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Onay bekleyen etkinlikler alınırken bir hata oluştu.'
+    });
+  }
+};
+
+export const getActiveEvents = async (req: Request, res: Response) => {
+  try {
+    // Sayfalama parametrelerini al
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    // Kullanıcı ID'sini al (opsiyonel filtre olarak)
+    const userId = req.query.userId as string || undefined;
+    
+    logger.info(`Aktif etkinlikler isteniyor. Sayfa: ${page}, Limit: ${limit}`);
+    
+    const activeEvents = await eventService.getEventsByStatus('active', {
+      page,
+      limit,
+      userId,
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      results: activeEvents.events.length,
+      page,
+      totalPages: activeEvents.totalPages,
+      totalEvents: activeEvents.totalEvents,
+      data: {
+        events: activeEvents.events
+      }
+    });
+  } catch (error) {
+    logger.error('Aktif etkinlikler alınırken hata:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Aktif etkinlikler alınırken bir hata oluştu.'
+    });
+  }
+};
+
+export const getRejectedEvents = async (req: Request, res: Response) => {
+  try {
+    // Sayfalama parametrelerini al
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    // Kullanıcı ID'sini al (opsiyonel filtre olarak)
+    const userId = req.query.userId as string || undefined;
+    
+    logger.info(`Reddedilen etkinlikler isteniyor. Sayfa: ${page}, Limit: ${limit}`);
+    
+    const rejectedEvents = await eventService.getEventsByStatus('rejected', {
+      page,
+      limit,
+      userId,
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      results: rejectedEvents.events.length,
+      page,
+      totalPages: rejectedEvents.totalPages,
+      totalEvents: rejectedEvents.totalEvents,
+      data: {
+        events: rejectedEvents.events
+      }
+    });
+  } catch (error) {
+    logger.error('Reddedilen etkinlikler alınırken hata:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Reddedilen etkinlikler alınırken bir hata oluştu.'
+    });
+  }
+};
+
+export const getCompletedEvents = async (req: Request, res: Response) => {
+  try {
+    // Sayfalama parametrelerini al
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    // Kullanıcı ID'sini al (opsiyonel filtre olarak)
+    const userId = req.query.userId as string || undefined;
+    
+    logger.info(`Tamamlanan etkinlikler isteniyor. Sayfa: ${page}, Limit: ${limit}`);
+    
+    const completedEvents = await eventService.getEventsByStatus('completed', {
+      page,
+      limit,
+      userId,
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      results: completedEvents.events.length,
+      page,
+      totalPages: completedEvents.totalPages,
+      totalEvents: completedEvents.totalEvents,
+      data: {
+        events: completedEvents.events
+      }
+    });
+  } catch (error) {
+    logger.error('Tamamlanan etkinlikler alınırken hata:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Tamamlanan etkinlikler alınırken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Farklı durumlardaki etkinliklerin sayılarını getiren endpoint handler
+ * @param req Express Request
+ * @param res Express Response
+ */
+export const getEventCounts = async (req: Request, res: Response) => {
+  try {
+    // Kullanıcı ID'si (opsiyonel)
+    const userId = req.query.userId as string | undefined;
+    
+    logger.info(`Etkinlik sayıları isteniyor. Kullanıcı filtresi: ${userId || 'Yok'}`);
+    
+    // Etkinlik sayılarını getir
+    const counts = await eventService.getEventCounts(userId);
+    
+    // Başarılı yanıt
+    res.status(200).json({
+      status: 'success',
+      data: counts
+    });
+  } catch (error) {
+    logger.error('Etkinlik sayıları alınırken hata oluştu:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Etkinlik sayıları alınırken bir hata oluştu.'
     });
   }
 }; 
