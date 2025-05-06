@@ -36,6 +36,10 @@
  *           type: string
  *           format: date-time
  *           description: Timestamp of last update
+ *         birthday_date:
+ *           type: string
+ *           format: date
+ *           description: User's birthday date
  *     UserDetail:
  *       type: object
  *       required:
@@ -77,6 +81,10 @@
  *           type: string
  *           format: date
  *           description: Date when user was last active
+ *         birthday_date:
+ *           type: string
+ *           format: date
+ *           description: User's birthday date
  *     CreateUserDTO:
  *       type: object
  *       required:
@@ -103,6 +111,10 @@
  *           type: string
  *           format: password
  *           description: User's password confirmation
+ *         birthday_date:
+ *           type: string
+ *           format: date
+ *           description: User's birthday date
  *     LoginDTO:
  *       type: object
  *       required:
@@ -127,6 +139,7 @@ export interface User {
   role: 'ADMIN' | 'STAFF' | 'USER';
   created_at: string;
   updated_at: string;
+  birthday_date?: string;
 }
 
 export interface UserDetail {
@@ -139,6 +152,7 @@ export interface UserDetail {
   avatar?: string;
   registeredDate: string;
   lastActive: string;
+  birthday_date: string;
 }
 
 export interface CreateUserDTO {
@@ -147,6 +161,7 @@ export interface CreateUserDTO {
   password_confirm?: string;
   first_name: string;
   last_name: string;
+  birthday_date?: string;
 }
 
 export interface LoginDTO {
