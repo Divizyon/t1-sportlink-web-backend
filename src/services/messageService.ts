@@ -1,5 +1,6 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { Message, CreateMessageDTO, UnreadMessageCount, Conversation } from '../models/Message';
+import { getIO } from '../config/socket';
 
 /**
  * Mesaj gönderir
@@ -116,25 +117,29 @@ export const getConversation = async (userId: string, friendId: string, limit = 
 
 /**
  * Mesajları okundu olarak işaretler
+ * 
+ * Bu fonksiyon, bir arkadaşın (friendId) bir kullanıcıya (userId) gönderdiği
+ * ve henüz okunmamış olan mesajları okundu olarak işaretler.
  */
 export const markMessagesAsRead = async (userId: string, friendId: string) => {
-  console.log(`Mesajları okundu olarak işaretleniyor. Alıcı: ${userId}, Gönderen: ${friendId}`);
+  console.log(`Mesajları okundu olarak işaretleniyor. Kullanıcı: ${userId}, Arkadaş: ${friendId}`);
+  console.log(`Şu mesajlar işaretlenecek: ${friendId} tarafından gönderilen ve ${userId} tarafından alınan okunmamış mesajlar`);
 
   try {
-    // RPC yerine doğrudan sorgu yapalım
+    // Arkadaşın gönderdiği ve kullanıcının aldığı okunmamış mesajları okundu olarak işaretle
     const { error } = await supabaseAdmin
       .from('messages')
       .update({ is_read: true, updated_at: new Date() })
-      .eq('sender_id', friendId)
-      .eq('receiver_id', userId)
-      .eq('is_read', false);
+      .eq('sender_id', friendId)  // Mesajı gönderen: arkadaş
+      .eq('receiver_id', userId)  // Mesajı alan: aktif kullanıcı
+      .eq('is_read', false);      // Sadece okunmamış mesajlar
     
     if (error) {
       console.error(`Mesajları okundu olarak işaretleme hatası: ${JSON.stringify(error)}`);
       throw error;
     }
     
-    console.log(`Mesajlar başarıyla okundu olarak işaretlendi.`);
+    console.log(`${friendId} tarafından gönderilen mesajlar başarıyla okundu olarak işaretlendi.`);
     return { success: true };
   } catch (error) {
     console.error('Mesajları okundu olarak işaretleme genel hatası:', error);
@@ -271,4 +276,35 @@ export const getChatList = async (userId: string) => {
   return chatList
     .filter(Boolean)
     .sort((a, b) => new Date(b!.last_activity).getTime() - new Date(a!.last_activity).getTime());
+};
+
+/**
+ * Socket üzerinden mesaj gönderir
+ */
+export const sendMessageViaSocket = async (senderId: string, receiverId: string, content: string, contentType: string = 'text'): Promise<Message> => {
+  // Önce normal mesaj gönderme işlemi
+  const message = await sendMessage(senderId, receiverId, content, contentType);
+  
+  // Socket.IO ile bildirim gönder
+  const io = getIO();
+  io.to(`user:${receiverId}`).emit('new_message', message);
+  
+  return message;
+};
+
+/**
+ * Socket üzerinden mesajları okundu olarak işaretler
+ */
+export const markMessagesAsReadViaSocket = async (userId: string, friendId: string) => {
+  // Önce normal okundu işaretleme
+  const result = await markMessagesAsRead(userId, friendId);
+  
+  // Socket.IO ile bildirim gönder
+  const io = getIO();
+  io.to(`user:${friendId}`).emit('messages_read', { 
+    by: userId,
+    timestamp: new Date()
+  });
+  
+  return result;
 };

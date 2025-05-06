@@ -231,3 +231,12 @@ export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
 
   next();
 };
+
+// Kimlik doğrulama middleware'i - ana route'larda kullanılır
+export const authenticate = protect;
+
+// Kimlik doğrulama gerektiren route'lar için
+export const requireAuth = protect;
+
+// Admin yetkisi gerektiren route'lar için
+export const requireAdmin = isAdmin;

@@ -103,6 +103,9 @@ export const markMessagesAsRead = async (req: Request, res: Response) => {
       });
     }
 
+    // Bu işlem, friendId parametresindeki arkadaşın gönderdiği,
+    // aktif kullanıcının (userId) aldığı ve henüz okunmamış mesajları
+    // okundu olarak işaretler
     const result = await messageService.markMessagesAsRead(userId, friendId);
 
     res.status(200).json({
