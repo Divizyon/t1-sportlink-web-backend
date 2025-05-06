@@ -644,12 +644,18 @@ interface UserProfileData {
   email: string;
   phone: string | null;
   avatar: string | null;
+  bio: string | null;
+  gender: string | null;
+  birthday_date: string | null;
+  address: string | null;
+  first_name: string;
+  last_name: string;
 }
 
 export const getUserProfileById = async (userId: string): Promise<UserProfileData> => {
   const { data, error } = await supabase
     .from('users')
-    .select('first_name, last_name, email, phone, profile_picture')
+    .select('first_name, last_name, email, phone, profile_picture, bio, gender, birthday_date, address')
     .eq('id', userId)
     .single();
 
@@ -663,6 +669,12 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
     email: data.email,
     phone: data.phone,
     avatar: data.profile_picture,
+    bio: data.bio,
+    gender: data.gender,
+    birthday_date: data.birthday_date ? format(new Date(data.birthday_date), 'yyyy-MM-dd') : null,
+    address: data.address,
+    first_name: data.first_name,
+    last_name: data.last_name
   };
 };
 
@@ -671,6 +683,10 @@ interface UpdateUserProfileDTO {
   last_name?: string;
   email?: string; // Email update needs careful consideration due to auth link
   phone?: string;
+  bio?: string;
+  gender?: string;
+  birthday_date?: string;
+  address?: string;
 }
 
 export const updateUserProfileById = async (userId: string, updateData: UpdateUserProfileDTO): Promise<void> => {

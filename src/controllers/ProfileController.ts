@@ -6,6 +6,7 @@ import * as authService from '../services/authService';
 import * as userService from '../services/userService';
 import logger from '../utils/logger';
 import supabase from '../config/supabase';
+import { format } from 'date-fns';
 
 // GET /api/profile
 export const getProfile = async (req: Request, res: Response) => {
@@ -28,18 +29,51 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (!userId) {
       throw new UnauthorizedError('User not authenticated');
     }
-    // Body'den sadece izin verilen alanları al (first_name, last_name, email, phone)
-    const { first_name, last_name, email, phone } = req.body;
+    // Body'den sadece izin verilen alanları al
+    const { first_name, last_name, email, phone, bio, gender, birthday_date, address } = req.body;
     
-    if (!first_name || !last_name) { // İsim ve soyisim zorunlu olabilir
+    if (!first_name || !last_name) { // İsim ve soyisim zorunlu
         throw new BadRequestError('First name and last name are required.');
     }
     
-    const updateData = { first_name, last_name, email, phone };
+    // Tarih formatı kontrolü
+    if (birthday_date) {
+      const birthdayDateObj = new Date(birthday_date);
+      const today = new Date();
+      
+      // Tarih geçerli mi kontrol et
+      if (isNaN(birthdayDateObj.getTime())) {
+        throw new BadRequestError('Please enter a valid date format (YYYY-MM-DD).');
+      }
+      
+      // Doğum tarihi gelecekte olamaz
+      if (birthdayDateObj > today) {
+        throw new BadRequestError('Birth date cannot be a future date.');
+      }
+    }
+    
+    const updateData = { 
+      first_name, 
+      last_name, 
+      email, 
+      phone,
+      bio,
+      gender,
+      birthday_date,
+      address
+    };
     
     await userService.updateUserProfileById(userId, updateData);
+    
+    // Güncellenmiş profil verilerini döndür
+    const updatedProfile = await userService.getUserProfileById(userId);
+    
     logger.info(`Profile updated for user: ${userId}`);
-    res.status(200).json({ status: 'success', message: 'Profile updated successfully' });
+    res.status(200).json({ 
+      status: 'success', 
+      message: 'Profile updated successfully',
+      data: updatedProfile
+    });
   } catch (error) {
     handleError(error as Error, res);
   }
