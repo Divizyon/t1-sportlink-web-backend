@@ -86,6 +86,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
       user_metadata: {
         first_name: userData.first_name,
         last_name: userData.last_name,
+        birthday_date: userData.birthday_date,
         role: 'USER' // Tüm yeni kayıtlar için USER rolü kullan
       }
     });
@@ -112,6 +113,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
       email: userData.email,
       first_name: userData.first_name,
       last_name: userData.last_name,
+      birthday_date: userData.birthday_date,
       role: 'USER',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -179,7 +181,8 @@ export const getUserDetails = async (): Promise<UserDetail[]> => {
         joinDate: registeredDate,
         avatar: `${defaultAvatar.replace('.jpg', '')}${(index % 3) + 1}.jpg`, // Rastgele avatar atama
         registeredDate: registeredDate,
-        lastActive: lastActive
+        lastActive: lastActive,
+        birthday_date: user.birthday_date ? format(new Date(user.birthday_date), 'yyyy-MM-dd') : ''
       };
     });
 
@@ -364,7 +367,7 @@ export const getUserDetailsById = async (id: string) => {
       registeredDate: format(new Date(userData.created_at), 'yyyy-MM-dd'),
       lastActive: format(new Date(userData.updated_at), 'yyyy-MM-dd'),
       gender: userData.gender || '',
-      age: userData.age || 0,
+      birthday_date: userData.birthday_date ? format(new Date(userData.birthday_date), 'yyyy-MM-dd') : null,
       address: userData.address || '',
       bio: userData.bio || '',
       phone: userData.phone || '',

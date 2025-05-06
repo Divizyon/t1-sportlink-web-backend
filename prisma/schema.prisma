@@ -169,7 +169,7 @@ model users {
   watched_since                               DateTime?
   status                                      String                 @default("active")
   gender                                      String?
-  age                                         Int?
+  birthday_date                               DateTime?
   address                                     String?
   bio                                         String?
   adminLogs                                   Admin_Logs[]

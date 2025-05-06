@@ -82,7 +82,8 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
           id: data.user.id,
           email: data.user.email,
           first_name: data.user.user_metadata?.first_name,
-          last_name: data.user.user_metadata?.last_name
+          last_name: data.user.user_metadata?.last_name,
+          birthday_date: data.user.user_metadata?.birthday_date
         });
         
         // Kullanıcı verilerini hazırla
@@ -94,6 +95,7 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
           last_name: data.user.user_metadata?.last_name || '',
           phone: data.user.phone || '',
           profile_picture: data.user.user_metadata?.avatar_url || '',
+          birthday_date: data.user.user_metadata?.birthday_date || null,
           role: data.user.user_metadata?.role || 'USER',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

@@ -133,8 +133,10 @@ router.get('/', restrictTo('ADMIN'), getAllUsers);
  *                       format: date
  *                     gender:
  *                       type: string
- *                     age:
- *                       type: integer
+ *                     birthday_date:
+ *                       type: string
+ *                       format: date
+ *                       description: User's birthday date
  *                     address:
  *                       type: string
  *                     bio:

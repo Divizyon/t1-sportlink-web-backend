@@ -6,7 +6,7 @@ import { SecurityService } from '../services/securityService';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, password_confirm, first_name, last_name } = req.body;
+    const { email, password, password_confirm, first_name, last_name, birthday_date } = req.body;
     
     // Gerekli alanları kontrol et
     if (!email || !password || !password_confirm || !first_name || !last_name) {
@@ -41,11 +41,33 @@ export const register = async (req: Request, res: Response) => {
       });
     }
     
+    // Doğum tarihi kontrolü (eğer varsa)
+    if (birthday_date) {
+      const birthdayDateObj = new Date(birthday_date);
+      const today = new Date();
+      
+      // Tarih geçerli mi kontrol et
+      if (isNaN(birthdayDateObj.getTime())) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Geçerli bir doğum tarihi girin (YYYY-MM-DD formatında).'
+        });
+      }
+      
+      // Doğum tarihi gelecekte olamaz
+      if (birthdayDateObj > today) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Doğum tarihi gelecek bir tarih olamaz.'
+        });
+      }
+    }
+    
     // IP adresini al
     const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
     
-    // User rolünde yeni kullanıcı oluştur (role parametresi artık gönderilmiyor)
-    const userData = { email, password, first_name, last_name };
+    // User rolünde yeni kullanıcı oluştur
+    const userData = { email, password, first_name, last_name, birthday_date };
     console.log('Register attempt with data:', { ...userData, password: '***' });
     
     // Kullanıcı oluştur
@@ -89,7 +111,8 @@ export const register = async (req: Request, res: Response) => {
           email: newUser.email,
           first_name: newUser.first_name,
           last_name: newUser.last_name,
-          role: newUser.role // Role artık her zaman 'USER'
+          birthday_date: newUser.birthday_date,
+          role: newUser.role
         }
       }
     });

@@ -50,6 +50,10 @@ const router = express.Router();
  *               last_name:
  *                 type: string
  *                 description: Kullanıcının soyadı
+ *               birthday_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Kullanıcının doğum tarihi (YYYY-MM-DD formatında)
  *     responses:
  *       201:
  *         description: Kullanıcı başarıyla oluşturuldu
@@ -80,6 +84,9 @@ const router = express.Router();
  *                           type: string
  *                         last_name:
  *                           type: string
+ *                         birthday_date:
+ *                           type: string
+ *                           format: date
  *                         role:
  *                           type: string
  *                           enum: [USER]
