@@ -76,12 +76,60 @@ router.get('/', getProfile);
  *               phone:
  *                 type: string
  *                 description: Kullanıcının telefon numarası
+ *               bio:
+ *                 type: string
+ *                 description: Kullanıcının biyografisi/hakkında bilgisi
+ *               gender:
+ *                 type: string
+ *                 description: Kullanıcının cinsiyeti
+ *               birthday_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Kullanıcının doğum tarihi (YYYY-MM-DD formatında)
+ *               address:
+ *                 type: string
+ *                 description: Kullanıcının adresi
  *             required:
  *               - first_name
  *               - last_name
  *     responses:
  *       200:
  *         description: Profil başarıyla güncellendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Profile updated successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     avatar:
+ *                       type: string
+ *                     bio:
+ *                       type: string
+ *                     gender:
+ *                       type: string
+ *                     birthday_date:
+ *                       type: string
+ *                       format: date
+ *                     address:
+ *                       type: string
+ *                     first_name:
+ *                       type: string
+ *                     last_name:
+ *                       type: string
  *       400:
  *         description: Hatalı istek (örn. gerekli alanlar eksik)
  *       401:
