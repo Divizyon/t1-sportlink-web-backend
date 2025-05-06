@@ -24,12 +24,16 @@ import newsExpiryChecker from './utils/newsExpiryChecker';
 import { warmupConnectionPool } from './config/supabase';
 import { setupStorageBuckets } from './config/bucketSetup';
 import { dbConnectionCheck } from './middleware/databaseMiddleware';
+import http from 'http';
+import { initializeSocket } from './config/socket';
+import logger from './utils/logger';
 
 // Load environment variables
 dotenv.config({ override: true });
 
 // Initialize express app
 const app = express();
+const server = http.createServer(app);
 const port = 3000;
 
 // CORS options
@@ -61,6 +65,9 @@ setupSwagger(app);
 // Veritabanı bağlantı kontrolü middleware'ini ekle
 app.use(dbConnectionCheck);
 
+// Socket.IO başlat
+initializeSocket(server);
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -75,6 +82,13 @@ app.use('/api/news-scraper', newsScraperRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 
+// Mobil API Routes
+import mobileFriendshipRoutes from './routes/friendshipRoutes';
+import mobileMessageRoutes from './routes/messageRoutes';
+
+app.use('/api/mobile/friendships', mobileFriendshipRoutes);
+app.use('/api/mobile/messages', mobileMessageRoutes);
+
 // Error handling middleware
 app.use(errorHandler);
 
@@ -87,8 +101,8 @@ const startServer = async () => {
     // Storage bucket'ları yapılandır
     await setupStorageBuckets();
     
-    // Sunucuyu başlat
-    const server = app.listen(port, () => {
+    // Sunucuyu başlat (app.listen yerine server.listen kullanıyoruz)
+    server.listen(port, () => {
       console.log(`Server running on port ${port}`);
       console.log(`API Documentation available at http://localhost:${port}/api-docs`);
       
