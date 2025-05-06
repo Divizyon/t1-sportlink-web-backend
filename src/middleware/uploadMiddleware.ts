@@ -7,7 +7,7 @@ import { supabaseAdmin } from '../config/supabase';
 // Böylece dosyalar önce hafızaya alınır ve sonra Supabase'e yüklenebilir
 const storage = multer.memoryStorage();
 
-// Filter to accept only images
+// Sadece resim dosyalarını kabul eden filtre
 const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   
@@ -18,7 +18,7 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
   }
 };
 
-// Create multer upload instance with file size limit (5MB)
+// Dosya boyutu limiti (5MB) ile Multer yükleme örneği oluştur
 const upload = multer({
   storage: storage,
   limits: {
@@ -27,8 +27,8 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-// Export a middleware for single file upload
-export const uploadImage = upload.single('image');
+// Tek dosya yüklemesi için middleware
+export const uploadImage = upload.single('avatar');
 
 /**
  * Dosyayı Supabase Storage'a yükler

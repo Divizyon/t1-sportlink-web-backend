@@ -32,9 +32,9 @@ export const setupSwagger = (app: Express): void => {
         },
       ],
       tags: [
-        { name: 'Auth', description: 'Authentication operations' },
+        { name: 'Auth', description: 'Kimlik doğrulama işlemleri' },
         { name: 'Events', description: 'Etkinlik yönetimi' },
-        { name: 'Profile', description: 'User profile management' },
+        { name: 'Profile', description: 'Kullanıcı profil yönetimi' },
         { name: 'Reports', description: 'Rapor yönetimi' },
         { name: 'Users', description: 'User management operations' },
         { name: 'Security', description: 'Security logs' },
