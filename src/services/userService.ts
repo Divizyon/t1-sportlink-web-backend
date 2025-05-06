@@ -650,6 +650,7 @@ interface UserProfileData {
   address: string | null;
   first_name: string;
   last_name: string;
+  total_events: number;
 }
 
 export const getUserProfileById = async (userId: string): Promise<UserProfileData> => {
@@ -664,6 +665,15 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
     throw new NotFoundError('User profile not found');
   }
 
+  const { count: eventCount, error: eventError } = await supabase
+    .from('Event_Participants')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (eventError) {
+    logger.error(`Error getting event count for user ID: ${userId}`, eventError);
+  }
+
   return {
     name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
     email: data.email,
@@ -674,7 +684,8 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
     birthday_date: data.birthday_date ? format(new Date(data.birthday_date), 'yyyy-MM-dd') : null,
     address: data.address,
     first_name: data.first_name,
-    last_name: data.last_name
+    last_name: data.last_name,
+    total_events: eventCount || 0
   };
 };
 

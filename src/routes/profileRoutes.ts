@@ -1,5 +1,5 @@
 import express from 'express';
-import { changePassword, getProfile, updateProfile, uploadAvatar } from '../controllers/ProfileController';
+import { changePassword, deleteAvatar, getProfile, updateProfile, uploadAvatar } from '../controllers/ProfileController';
 import { protect } from '../middleware/authMiddleware';
 import { uploadImage } from '../middleware/uploadMiddleware'; // Dosya yükleme middleware'i
 
@@ -25,7 +25,7 @@ router.use(protect);
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Kullanıcı profil bilgileri (isim, e-posta, telefon, profil resmi)
+ *         description: Kullanıcı profil bilgileri
  *         content:
  *           application/json:
  *             schema:
@@ -33,14 +33,40 @@ router.use(protect);
  *               properties:
  *                 name:
  *                   type: string
+ *                   description: Kullanıcının tam adı
  *                 email:
  *                   type: string
  *                   format: email
+ *                   description: Kullanıcının e-posta adresi
  *                 phone:
  *                   type: string
+ *                   description: Kullanıcının telefon numarası
  *                 avatar:
  *                   type: string
  *                   format: url
+ *                   description: Kullanıcının profil resmi URL'i
+ *                 bio:
+ *                   type: string
+ *                   description: Kullanıcının biyografisi
+ *                 gender:
+ *                   type: string
+ *                   description: Kullanıcının cinsiyeti
+ *                 birthday_date:
+ *                   type: string
+ *                   format: date
+ *                   description: Kullanıcının doğum tarihi
+ *                 address:
+ *                   type: string
+ *                   description: Kullanıcının adresi
+ *                 first_name:
+ *                   type: string
+ *                   description: Kullanıcının adı
+ *                 last_name:
+ *                   type: string
+ *                   description: Kullanıcının soyadı
+ *                 total_events:
+ *                   type: integer
+ *                   description: Kullanıcının katıldığı toplam etkinlik sayısı
  *       401:
  *         description: Yetkisiz erişim
  *       404:
@@ -130,6 +156,9 @@ router.get('/', getProfile);
  *                       type: string
  *                     last_name:
  *                       type: string
+ *                     total_events:
+ *                       type: integer
+ *                       description: Kullanıcının katıldığı toplam etkinlik sayısı
  *       400:
  *         description: Hatalı istek (örn. gerekli alanlar eksik)
  *       401:
@@ -222,5 +251,43 @@ router.put('/password', changePassword);
  *         description: Yetkisiz erişim
  */
 router.post('/avatar', uploadImage, uploadAvatar); // upload middleware'ini kullanıyoruz
+
+/**
+ * @swagger
+ * /api/profile/avatar:
+ *   delete:
+ *     summary: Profil resmi sil
+ *     description: Kullanıcının profil resmini siler ve varsayılan/boş resme geri döner.
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profil resmi başarıyla silindi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Avatar deleted successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     avatarUrl:
+ *                       type: string
+ *                       description: Varsayılan avatar URL'i veya boş string
+ *       401:
+ *         description: Yetkisiz erişim
+ *       404:
+ *         description: Kullanıcı bulunamadı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.delete('/avatar', deleteAvatar);
 
 export default router; 

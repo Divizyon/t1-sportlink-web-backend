@@ -166,4 +166,104 @@ export const uploadAvatar = async (req: Request, res: Response) => {
     } catch (error) {
         handleError(error as Error, res);
     }
+};
+
+// DELETE /api/profile/avatar
+export const deleteAvatar = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedError('User not authenticated');
+    }
+
+    // Varsayılan avatar URL'i
+    const defaultAvatarUrl = process.env.DEFAULT_AVATAR_URL || '';
+
+    // Kullanıcının mevcut avatar URL'ini al
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('profile_picture')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      logger.error(`Error getting user data for ID: ${userId}`, userError);
+      throw new NotFoundError('User not found');
+    }
+
+    // Eğer kullanıcının zaten avatarı yoksa işlem yapmaya gerek yok
+    if (!userData.profile_picture || userData.profile_picture === defaultAvatarUrl) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'No avatar to delete'
+      });
+    }
+
+    // Avatar URL'inden dosya yolunu çıkart
+    const fileUrl = userData.profile_picture;
+    let filePath = '';
+
+    try {
+      // sportlink-files/ ile başlayan kısmı çıkart
+      const storageUrl = new URL(fileUrl);
+      const pathParts = storageUrl.pathname.split('/');
+      
+      // Bucket adından sonraki kısmı al
+      const bucketIndex = pathParts.findIndex(part => part === 'sportlink-files');
+      if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
+        filePath = pathParts.slice(bucketIndex + 1).join('/');
+      }
+
+      // Eğer filePath doğru şekilde çıkarılamadıysa
+      if (!filePath) {
+        // Alternatif olarak users/avatars/ klasörü altındaki dosya adını al
+        const avatarFileName = fileUrl.split('/').pop();
+        if (avatarFileName) {
+          filePath = `users/avatars/${avatarFileName}`;
+        }
+      }
+    } catch (error) {
+      logger.error(`Error parsing avatar URL: ${fileUrl}`, error);
+      // Dosya silinmese bile profil güncellenecek, bu nedenle devam et
+    }
+
+    // Eğer dosya yolu çıkarılabildiyse, depolama alanından sil
+    if (filePath) {
+      const { error: deleteError } = await supabase.storage
+        .from('sportlink-files')
+        .remove([filePath]);
+
+      if (deleteError) {
+        logger.error(`Error deleting avatar from storage: ${filePath}`, deleteError);
+        // Dosya silinmese bile profil güncellenecek, bu nedenle devam et
+      } else {
+        logger.info(`Avatar successfully deleted from storage: ${filePath}`);
+      }
+    }
+
+    // Kullanıcı profilindeki avatar alanını varsayılan değer veya boş string ile güncelle
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        profile_picture: defaultAvatarUrl,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      logger.error(`Error updating user profile after avatar deletion: ${userId}`, updateError);
+      throw new Error('Failed to update profile after avatar deletion');
+    }
+
+    logger.info(`Avatar deleted for user ${userId}`);
+    res.status(200).json({
+      status: 'success',
+      message: 'Avatar deleted successfully',
+      data: { 
+        avatarUrl: defaultAvatarUrl 
+      }
+    });
+  } catch (error) {
+    handleError(error as Error, res);
+  }
 }; 
