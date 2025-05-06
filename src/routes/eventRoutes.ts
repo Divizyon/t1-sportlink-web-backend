@@ -102,8 +102,10 @@ router.get('/today', optionalAuth, EventController.getTodayEvents);
  * /api/events:
  *   get:
  *     summary: Tüm etkinlikleri getir
- *     description: Sistemdeki tüm etkinlikleri listeler
+ *     description: Sistemdeki tüm etkinlikleri listeler (giriş yapmış tüm kullanıcılar erişebilir)
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Etkinlikler başarıyla getirildi
@@ -122,17 +124,19 @@ router.get('/today', optionalAuth, EventController.getTodayEvents);
  *                       type: array
  *                       items:
  *                         $ref: '#/components/schemas/Event'
+ *       401:
+ *         description: Giriş yapılmamış veya token geçersiz
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/', enforceDbConnection, EventController.getAllEvents);
+router.get('/', protect, enforceDbConnection, EventController.getAllEvents);
 
 /**
  * @swagger
  * /api/events:
  *   post:
  *     summary: Yeni etkinlik oluştur
- *     description: Yeni bir etkinlik oluşturur
+ *     description: Yeni bir etkinlik oluşturur. Tüm kullanıcılar (USER ve ADMIN rolleri) etkinlik oluşturabilir. USER rolündeki kullanıcıların oluşturduğu etkinlikler PENDING durumunda başlar ve admin onayı gerektirir.
  *     tags: [Events]
  *     security:
  *       - bearerAuth: []
@@ -232,6 +236,8 @@ router.post('/', protect, enforceDbConnection, EventController.createEvent);
  *     summary: Belirli bir etkinliği getir
  *     description: Verilen ID'ye sahip etkinliği getirir
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -255,12 +261,14 @@ router.post('/', protect, enforceDbConnection, EventController.createEvent);
  *                   properties:
  *                     event:
  *                       $ref: '#/components/schemas/Event'
+ *       401:
+ *         description: Giriş yapılmamış veya token geçersiz
  *       404:
  *         description: Etkinlik bulunamadı
  *       500:
  *         description: Sunucu hatası
  */
-router.get('/:id', enforceDbConnection, EventController.getEventById);
+router.get('/:id', protect, enforceDbConnection, EventController.getEventById);
 
 /**
  * @swagger
@@ -325,7 +333,7 @@ router.patch('/:id/status', protect, EventController.updateEventStatus);
  * /api/events/{id}:
  *   put:
  *     summary: Etkinlik bilgilerini güncelle
- *     description: Mevcut bir etkinliğin bilgilerini günceller
+ *     description: Mevcut bir etkinliğin bilgilerini günceller. Kullanıcılar sadece kendi oluşturduğu etkinlikleri güncelleyebilir. ADMIN rolündeki kullanıcılar tüm etkinlikleri güncelleyebilir.
  *     tags: [Events]
  *     security:
  *       - bearerAuth: []
@@ -424,7 +432,7 @@ router.put('/:id', protect, EventController.updateEvent);
  * /api/events/{id}:
  *   delete:
  *     summary: Etkinliği sil
- *     description: Bir etkinliği kalıcı olarak siler
+ *     description: Bir etkinliği kalıcı olarak siler. Kullanıcılar sadece kendi oluşturduğu etkinlikleri silebilir. ADMIN rolündeki kullanıcılar tüm etkinlikleri silebilir.
  *     tags: [Events]
  *     security:
  *       - bearerAuth: []
@@ -719,5 +727,153 @@ router.get('/status/rejected', protect, EventController.getRejectedEvents);
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/status/completed', protect, EventController.getCompletedEvents);
+
+/**
+ * @swagger
+ * /api/events/{id}/join:
+ *   post:
+ *     summary: Etkinliğe katıl
+ *     description: Kullanıcının belirli bir etkinliğe katılmasını sağlar. Kullanıcılar başkalarının oluşturduğu aktif durumdaki etkinliklere katılabilir.
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Etkinlik ID'si
+ *     responses:
+ *       200:
+ *         description: Etkinliğe başarıyla katıldınız
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Etkinliğe başarıyla katıldınız
+ *       400:
+ *         description: Etkinliğe katılım hatası (dolu etkinlik, zaten katılmış, vb.)
+ *       401:
+ *         description: Yetkilendirme hatası
+ *       404:
+ *         description: Etkinlik bulunamadı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.post('/:id/join', protect, EventController.joinEvent);
+
+/**
+ * @swagger
+ * /api/events/{id}/leave:
+ *   post:
+ *     summary: Etkinlikten ayrıl
+ *     description: Kullanıcının daha önce katıldığı bir etkinlikten ayrılmasını sağlar.
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Etkinlik ID'si
+ *     responses:
+ *       200:
+ *         description: Etkinlikten başarıyla ayrıldınız
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Etkinlikten başarıyla ayrıldınız
+ *       400:
+ *         description: Etkinlikten ayrılma hatası (katılmamış olma, vb.)
+ *       401:
+ *         description: Yetkilendirme hatası
+ *       404:
+ *         description: Etkinlik bulunamadı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.post('/:id/leave', protect, EventController.leaveEvent);
+
+/**
+ * @swagger
+ * /api/events/{id}/participants:
+ *   get:
+ *     summary: Etkinlik katılımcılarını getir
+ *     description: Belirli bir etkinliğe katılan kullanıcıların listesini döndürür.
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Etkinlik ID'si
+ *     responses:
+ *       200:
+ *         description: Başarılı yanıt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 5
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     participants:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           user_id:
+ *                             type: string
+ *                           full_name:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           profile_image:
+ *                             type: string
+ *                           bio:
+ *                             type: string
+ *                           role:
+ *                             type: string
+ *                           user_role:
+ *                             type: string
+ *                           joined_at:
+ *                             type: string
+ *                             format: date-time
+ *       401:
+ *         description: Giriş yapılmamış veya token geçersiz
+ *       404:
+ *         description: Etkinlik bulunamadı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get('/:id/participants', protect, EventController.getEventParticipants);
 
 export default router; 

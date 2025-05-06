@@ -156,6 +156,10 @@ export const createEvent = async (req: Request, res: Response) => {
         
         if (!userData) {
           logger.warn(`Kullanıcı veritabanında bulunamadı: ${userId}`);
+          return res.status(404).json({
+            status: 'error',
+            message: 'Kullanıcı profili bulunamadı. Profil bilgilerinizi tamamlayıp tekrar deneyin.'
+          });
         } else {
           logger.info(`Kullanıcı veritabanında bulundu: ${JSON.stringify(userData)}`);
         }
@@ -224,15 +228,16 @@ export const createEvent = async (req: Request, res: Response) => {
         const newEvent = await eventService.createEvent(newEventData);
         logger.info("Etkinlik başarıyla oluşturuldu:", newEvent);
 
-        // Admin bilgilerini al
-        const { data: adminData } = await supabaseAdmin
+        // Kullanıcı bilgilerini al
+        const { data: userData } = await supabaseAdmin
           .from('users')
-          .select('email, first_name, last_name')
+          .select('email, first_name, last_name, role')
           .eq('id', userId)
           .single();
         
-        const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
-        const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+        const userEmail = userData?.email || 'bilinmeyen@mail.com';
+        const userName = userData ? `${userData.first_name} ${userData.last_name}` : 'Bilinmeyen Kullanıcı';
+        const userRole = userData?.role || 'USER';
         
         // IP adresi al
         const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
@@ -248,39 +253,29 @@ export const createEvent = async (req: Request, res: Response) => {
           }
         }
         
-        // Log oluştur
+        // Güvenlik log kaydı oluştur (önemli etkinlik değişikliklerini izlemek için)
         await SecurityLogService.createLog({
           admin_id: userId,
-          admin_username: adminName,
+          admin_username: userName,
           type: 'event_create',
           ip_address: ip,
           details: {
             event_id: newEvent.id,
             title: newEvent.title,
-            sport_name: sportName
+            sport_name: sportName,
+            user_role: userRole
           },
-          action: `Etkinlik oluşturuldu / ${adminEmail} / etkinlik: ${newEvent.title} (#${newEvent.id}) / spor: ${sportName}`
+          action: `Etkinlik oluşturuldu / ${userEmail} / etkinlik: ${newEvent.title} (#${newEvent.id}) / spor: ${sportName}`
         });
 
         // Etkinlik oluşturulduğunda adminlere bildirim gönder
         try {
-          // Kullanıcı bilgilerini al
-          const { data: userData } = await supabaseAdmin
-            .from('users')
-            .select('first_name, last_name')
-            .eq('id', userId)
-            .single();
-            
-          const creatorName = userData 
-            ? `${userData.first_name} ${userData.last_name}`
-            : 'Bilinmeyen Kullanıcı';
-            
           // Adminlere bildirim gönder
           const notificationService = new NotificationService();
           await notificationService.notifyAdminsNewEvent(
             newEvent.id,
             newEvent.title,
-            creatorName
+            userName
           );
           logger.info(`Yeni etkinlik bildirimi gönderildi: ${newEvent.title}`);
         } catch (notificationError) {
@@ -360,10 +355,20 @@ export const createEvent = async (req: Request, res: Response) => {
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
-    console.log('Tüm etkinlikler istendi');
+    // Kullanıcı bilgisini al
+    const userId = req.user?.id;
     
-    // Etkinlikleri getir
-    const events = await eventService.getAllEvents();
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    console.log(`Tüm etkinlikler istendi (Kullanıcı: ${userId})`);
+    
+    // Etkinlikleri getir (kullanıcı ID'si ile)
+    const events = await eventService.getAllEvents(userId);
     
     console.log(`${events.length} etkinlik bulundu`);
     
@@ -385,7 +390,16 @@ export const getAllEvents = async (req: Request, res: Response) => {
 export const getEventById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    console.log(`Etkinlik detayı istendi: ${id}`);
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    console.log(`Etkinlik detayı istendi: ${id}, İsteyen kullanıcı: ${userId}`);
     
     try {
       // Etkinliği getir
@@ -537,6 +551,18 @@ export const updateEvent = async (req: Request, res: Response) => {
         });
       }
       
+      // Kullanıcının bu etkinliği güncelleme yetkisi var mı kontrol et
+      if (existingEvent.creator_id !== userId) {
+        // Kullanıcı rolünü kontrol et
+        const isAdmin = await eventService.isUserAdmin(userId);
+        if (!isAdmin) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Bu etkinliği güncelleme yetkiniz bulunmamaktadır. Sadece kendi oluşturduğunuz etkinlikleri güncelleyebilirsiniz.'
+          });
+        }
+      }
+      
       // Değişen alanları ve değerleri tespit et
       const updatedFields: string[] = [];
       const changedValues: Record<string, { old: any; new: any }> = {};
@@ -554,15 +580,16 @@ export const updateEvent = async (req: Request, res: Response) => {
       // Etkinliği güncelle
       const updatedEvent = await eventService.updateEvent(id, req.body, userId);
       
-      // Admin bilgilerini al
-      const { data: adminData } = await supabaseAdmin
+      // Kullanıcı bilgilerini al
+      const { data: userData } = await supabaseAdmin
         .from('users')
-        .select('email, first_name, last_name')
+        .select('email, first_name, last_name, role')
         .eq('id', userId)
         .single();
       
-      const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
-      const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+      const userEmail = userData?.email || 'bilinmeyen@mail.com';
+      const userName = userData ? `${userData.first_name} ${userData.last_name}` : 'Bilinmeyen Kullanıcı';
+      const userRole = userData?.role || 'USER';
       
       // IP adresi al
       const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
@@ -587,7 +614,7 @@ export const updateEvent = async (req: Request, res: Response) => {
       }
       
       // Log oluştur - Detaylı formatta
-      let logAction = `Etkinlik güncellendi / ${adminEmail} / etkinlik: ${updatedEvent.title} (#${id})`;
+      let logAction = `Etkinlik güncellendi / ${userEmail} / etkinlik: ${updatedEvent.title} (#${id})`;
       
       // Değişen alan sayısına göre action string'ini güncelle
       if (updatedFields.length > 0) {
@@ -640,7 +667,7 @@ export const updateEvent = async (req: Request, res: Response) => {
       // Log kaydı oluştur
       await SecurityLogService.createLog({
         admin_id: userId,
-        admin_username: adminName,
+        admin_username: userName,
         type: 'event_update',
         ip_address: ip,
         details: {
@@ -648,30 +675,20 @@ export const updateEvent = async (req: Request, res: Response) => {
           title: updatedEvent.title,
           updated_fields: updatedFields,
           changed_values: changedValues,
-          sport_name: sportName || undefined
+          sport_name: sportName || undefined,
+          user_role: userRole
         },
         action: logAction
       });
       
       // Etkinlik güncellendiğinde adminlere bildirim gönder
       try {
-        // Kullanıcı bilgilerini al
-        const { data: userData } = await supabaseAdmin
-          .from('users')
-          .select('first_name, last_name')
-          .eq('id', userId)
-          .single();
-          
-        const updaterName = userData 
-          ? `${userData.first_name} ${userData.last_name}`
-          : 'Bilinmeyen Kullanıcı';
-          
         // Adminlere bildirim gönder
         const notificationService = new NotificationService();
         await notificationService.notifyAdminsEventUpdated(
           parseInt(id),
           updatedEvent.title,
-          updaterName
+          userName
         );
         logger.info(`Etkinlik güncelleme bildirimi gönderildi: ${updatedEvent.title}`);
       } catch (notificationError) {
@@ -749,32 +766,46 @@ export const deleteEvent = async (req: Request, res: Response) => {
         });
       }
       
+      // Kullanıcının bu etkinliği silme yetkisi var mı kontrol et
+      if (event.creator_id !== userId) {
+        // Kullanıcı rolünü kontrol et
+        const isAdmin = await eventService.isUserAdmin(userId);
+        if (!isAdmin) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Bu etkinliği silme yetkiniz bulunmamaktadır. Sadece kendi oluşturduğunuz etkinlikleri silebilirsiniz.'
+          });
+        }
+      }
+      
       // Etkinliği sil
       const result = await eventService.deleteEvent(id, userId);
       
-      // Admin bilgilerini al
-      const { data: adminData } = await supabaseAdmin
+      // Kullanıcı bilgilerini al
+      const { data: userData } = await supabaseAdmin
         .from('users')
-        .select('email, first_name, last_name')
+        .select('email, first_name, last_name, role')
         .eq('id', userId)
         .single();
       
-      const adminEmail = adminData?.email || 'bilinmeyen@mail.com';
-      const adminName = adminData ? `${adminData.first_name} ${adminData.last_name}` : 'Bilinmeyen Admin';
+      const userEmail = userData?.email || 'bilinmeyen@mail.com';
+      const userName = userData ? `${userData.first_name} ${userData.last_name}` : 'Bilinmeyen Kullanıcı';
+      const userRole = userData?.role || 'USER';
       
       // Log oluştur
       const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
       
       await SecurityLogService.createLog({
         admin_id: userId,
-        admin_username: adminName,
+        admin_username: userName,
         type: 'event_delete',
         ip_address: ip,
         details: {
           event_id: id,
-          title: event.title
+          title: event.title,
+          user_role: userRole
         },
-        action: `Etkinlik silindi / ${adminEmail} / etkinlik: ${event.title} (#${id})`
+        action: `Etkinlik silindi / ${userEmail} / etkinlik: ${event.title} (#${id})`
       });
       
       logger.info(`Etkinlik silindi: ${id}`);
@@ -979,6 +1010,198 @@ export const getEventCounts = async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Etkinlik sayıları alınırken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Kullanıcı etkinliğe katılır
+ */
+export const joinEvent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+
+    logger.info(`Etkinliğe katılma isteği: eventId=${id}, userId=${userId}`);
+
+    try {
+      const result = await eventService.joinEvent(id, userId);
+      
+      // Kullanıcı bilgilerini al
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      
+      const userName = userData ? `${userData.first_name} ${userData.last_name}` : 'Bilinmeyen Kullanıcı';
+      
+      // Etkinlik bilgilerini al
+      const event = await eventService.findEventById(id);
+      
+      // Etkinlik sahibine bildirim gönder (isteğe bağlı)
+      try {
+        const notificationService = new NotificationService();
+        await notificationService.notifyEventOwner(
+          event.creator_id,
+          event.id,
+          event.title,
+          userName,
+          'join'
+        );
+        logger.info(`Etkinlik sahibine katılım bildirimi gönderildi: eventId=${id}`);
+      } catch (notificationError) {
+        logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+        // Ana işlemi etkilememesi için hata fırlatmıyoruz
+      }
+
+      return res.status(200).json({
+        status: 'success',
+        message: result.message
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.warn(`Etkinliğe katılma hatası: ${error.message}`);
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinliğe katılma hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Etkinliğe katılırken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Kullanıcı etkinlikten ayrılır
+ */
+export const leaveEvent = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+
+    logger.info(`Etkinlikten ayrılma isteği: eventId=${id}, userId=${userId}`);
+
+    try {
+      const result = await eventService.leaveEvent(id, userId);
+      
+      // Kullanıcı bilgilerini al
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      
+      const userName = userData ? `${userData.first_name} ${userData.last_name}` : 'Bilinmeyen Kullanıcı';
+      
+      // Etkinlik bilgilerini al
+      const event = await eventService.findEventById(id);
+      
+      // Etkinlik sahibine bildirim gönder (isteğe bağlı)
+      try {
+        const notificationService = new NotificationService();
+        await notificationService.notifyEventOwner(
+          event.creator_id,
+          event.id,
+          event.title,
+          userName,
+          'leave'
+        );
+        logger.info(`Etkinlik sahibine ayrılma bildirimi gönderildi: eventId=${id}`);
+      } catch (notificationError) {
+        logger.error('Bildirim gönderirken hata oluştu:', notificationError);
+        // Ana işlemi etkilememesi için hata fırlatmıyoruz
+      }
+
+      return res.status(200).json({
+        status: 'success',
+        message: result.message
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.warn(`Etkinlikten ayrılma hatası: ${error.message}`);
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinlikten ayrılma hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Etkinlikten ayrılırken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Etkinliğin katılımcılarını getirir
+ */
+export const getEventParticipants = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    logger.info(`Etkinlik katılımcıları isteniyor: ${id}, isteyen kullanıcı: ${userId}`);
+    
+    try {
+      // Etkinliği kontrol et (hem etkinliğin varlığını hem de kullanıcının erişim hakkı olup olmadığını)
+      const event = await eventService.findEventById(id);
+      
+      // Etkinlik katılımcılarını getir
+      const participants = await eventService.getEventParticipants(id);
+      
+      return res.status(200).json({
+        status: 'success',
+        results: participants.length,
+        data: {
+          participants
+        }
+      });
+    } catch (error) {
+      if (error instanceof EventNotFoundError) {
+        return res.status(404).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinlik katılımcıları getirme hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Etkinlik katılımcıları getirilirken bir hata oluştu.'
     });
   }
 }; 

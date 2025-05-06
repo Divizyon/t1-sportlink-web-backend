@@ -143,23 +143,27 @@ export const canUpdateEventStatus = async (userId: string, event: Event): Promis
     // Admin her türlü durumu değiştirebilir
     if (isAdmin) return true;
 
-    // Admin olmayan kullanıcılar için kısıtlamalar
+    // Admin olmayan kullanıcılar için kısıtlamalar:
     // 1. Sadece kendi etkinliklerini güncelleyebilirler
     if (userId !== event.creator_id) {
+      logger.info(`Yetki reddedildi: Kullanıcı (${userId}) etkinliğin sahibi (${event.creator_id}) değil.`);
       return false;
     }
 
-    // 2. PENDING durumundaki etkinlikleri değiştiremezler (admin onayı gerekli)
+    // 2. PENDING durumundaki etkinlikleri değiştiremezler (admin onayı beklenirken)
     if (event.status === EventStatus.PENDING) {
+      logger.info(`Yetki reddedildi: Etkinlik (${event.id}) onay bekliyor, güncellenemez.`);
       return false;
     }
 
     // 3. REJECTED durumundaki etkinlikleri değiştiremezler
     if (event.status === EventStatus.REJECTED) {
+      logger.info(`Yetki reddedildi: Etkinlik (${event.id}) reddedildi, güncellenemez.`);
       return false;
     }
 
     // Diğer durumlar için etkinlik sahibi değişiklik yapabilir
+    logger.info(`Yetki verildi: Kullanıcı (${userId}) kendi etkinliğini (${event.id}) güncelleyebilir.`);
     return true;
   } catch (error) {
     logger.error('Permission check error:', error);
@@ -390,7 +394,7 @@ export const createEvent = async (eventData: any) => {
       if (!userData) {
         logger.warn(`Uyarı: ${eventData.creator_id} ID'li kullanıcı veritabanında bulunamadı`);
       } else {
-        logger.info(`Kullanıcı veritabanında doğrulandı: ${userData.id}`);
+        logger.info(`Kullanıcı veritabanında doğrulandı: ${userData.id}, Rolü: ${userData.role}`);
       }
     } catch (uuidError) {
       logger.error(`UUID kontrolü sırasında hata: ${uuidError instanceof Error ? uuidError.message : 'Bilinmeyen hata'}`);
@@ -411,7 +415,7 @@ export const createEvent = async (eventData: any) => {
       location_latitude: parseFloat(eventData.location_lat || eventData.location_latitude || 0),
       location_longitude: parseFloat(eventData.location_long || eventData.location_longitude || 0),
       max_participants: Number(eventData.max_participants),
-      status: EventStatus.PENDING,
+      status: EventStatus.PENDING,  // Tüm kullanıcılar için PENDING durumunda başlat
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -485,13 +489,18 @@ export const createEvent = async (eventData: any) => {
   }
 };
 
-export const getAllEvents = async () => {
+export const getAllEvents = async (userId: string) => {
   try {
-    logger.info('Tüm etkinlikler getiriliyor');
+    logger.info(`Tüm etkinlikler getiriliyor (Kullanıcı: ${userId})`);
     
-    // Özellikle supabaseAdmin kullandığımızı vurgula
-    logger.info('Service role key ile sorgu yapılıyor (RLS bypass)');
+    // Kullanıcının rolünü kontrol et
+    const isAdmin = await isUserAdmin(userId);
+    logger.info(`Kullanıcı rolü: ${isAdmin ? 'ADMIN' : 'USER'}`);
     
+    // Önce kullanıcıların etkinlikleri görmesine izin verildiğinden emin ol
+    // Tüm kullanıcılar, admin olsun veya olmasın bu endpointe erişilebilmeli
+    
+    // Supabase sorgusu, RLS politikalarını dikkate alır
     const { data, error } = await supabaseAdmin
       .from('Events')
       .select(`
@@ -767,10 +776,26 @@ export const deleteEvent = async (
     const existingEvent = await findEventById(eventId);
     logger.info(`Silinecek etkinlik bulundu: ${existingEvent.id}`);
 
-    // Yetki kontrolü
-    const hasPermission = await canUpdateEventStatus(userId, existingEvent);
-    if (!hasPermission) {
-      throw new EventPermissionError('Bu etkinliği silme yetkiniz bulunmamaktadır.');
+    // Yetki kontrolü - sadece etkinlik sahibi veya ADMIN silebilir
+    const isAdmin = await isUserAdmin(userId);
+    
+    if (!isAdmin && existingEvent.creator_id !== userId) {
+      logger.warn(`Yetki hatası: Kullanıcı (${userId}) kendi oluşturmadığı (${existingEvent.creator_id}) etkinliği silmeye çalışıyor`);
+      throw new EventPermissionError('Bu etkinliği silme yetkiniz bulunmamaktadır. Sadece kendi oluşturduğunuz etkinlikleri silebilirsiniz.');
+    }
+    
+    // Önce etkinlikle ilgili bildirimleri sil
+    try {
+      const { error: notificationsError } = await supabaseAdmin
+        .from('Notifications')
+        .delete()
+        .eq('event_id', eventId);
+      
+      if (notificationsError) {
+        logger.warn(`Etkinlik bildirimlerini silme hatası: ${notificationsError.message}`);
+      }
+    } catch (notificationsError) {
+      logger.warn(`Etkinlik bildirimlerini silme hatası: ${notificationsError instanceof Error ? notificationsError.message : 'Bilinmeyen hata'}`);
     }
     
     // Etkinlikten önce etkinlik katılımcılarını sil (foreign key constraints)
@@ -789,7 +814,7 @@ export const deleteEvent = async (
       const { error: reportsError } = await supabaseAdmin
         .from('Reports')
         .delete()
-        .eq('related_event', eventId);
+        .eq('event_id', eventId);  // 'related_event' yerine 'event_id' kullanıyoruz
       
       if (reportsError) {
         logger.warn(`Etkinlik raporlarını silme hatası: ${reportsError.message}`);
@@ -862,23 +887,58 @@ export const getEventDetails = async (eventId: string) => {
 
 export const joinEvent = async (eventId: string, userId: string, role: string = 'PARTICIPANT') => {
   try {
+    logger.info(`Kullanıcı etkinliğe katılıyor: eventId=${eventId}, userId=${userId}, role=${role}`);
+    
     // Önce etkinlik detaylarını ve katılımcı sayısını kontrol et
     const { data: event, error: eventError } = await supabaseAdmin
       .from('Events')
       .select(`
+        id,
+        status,
         max_participants,
-        participants:Event_Participants (count)
+        participants:Event_Participants (count),
+        creator_id
       `)
       .eq('id', eventId)
       .single();
 
     if (eventError) {
       logger.error('Etkinlik bilgileri alınırken hata:', eventError);
-      throw eventError;
+      throw new Error('Etkinlik bulunamadı');
+    }
+    
+    // Etkinlik durumunu kontrol et
+    if (event.status !== EventStatus.ACTIVE) {
+      logger.warn(`Etkinlik aktif değil: eventId=${eventId}, status=${event.status}`);
+      throw new Error(`Bu etkinliğe katılamazsınız. Etkinlik durumu: ${event.status}`);
+    }
+    
+    // Kullanıcı kendi etkinliğine katılmak istiyorsa engelle
+    if (event.creator_id === userId) {
+      logger.warn(`Kullanıcı kendi etkinliğine katılmaya çalışıyor: eventId=${eventId}, userId=${userId}`);
+      throw new Error('Kendi oluşturduğunuz etkinliğe katılımcı olarak katılamazsınız');
+    }
+    
+    // Kullanıcı zaten etkinliğe katılmış mı kontrol et
+    const { data: existingParticipation, error: participationError } = await supabaseAdmin
+      .from('Event_Participants')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (participationError) {
+      logger.error('Katılım kontrolü sırasında hata:', participationError);
+      throw new Error('Katılım durumu kontrol edilirken bir hata oluştu');
+    }
+    
+    if (existingParticipation) {
+      logger.warn(`Kullanıcı zaten etkinliğe katılmış: eventId=${eventId}, userId=${userId}`);
+      throw new Error('Bu etkinliğe zaten katıldınız');
     }
 
     // Katılımcı sayısını kontrol et
-    const currentParticipants = event.participants[0].count;
+    const currentParticipants = event.participants[0]?.count || 0;
     if (currentParticipants >= event.max_participants) {
       logger.warn(`Etkinlik dolu: eventId=${eventId}, maxParticipants=${event.max_participants}, currentParticipants=${currentParticipants}`);
       throw new Error('Bu etkinlik maksimum katılımcı sayısına ulaştı');
@@ -896,13 +956,84 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
 
     if (participantError) {
       logger.error('Etkinliğe katılım eklenirken hata:', participantError);
-      throw participantError;
+      throw new Error('Etkinliğe katılım sağlanırken bir hata oluştu');
     }
 
     logger.info(`Etkinliğe katılım başarılı: eventId=${eventId}, userId=${userId}, role=${role}`);
-    return { success: true };
+    return { success: true, message: 'Etkinliğe başarıyla katıldınız' };
   } catch (error) {
     logger.error('Etkinliğe katılım sırasında hata:', error);
+    throw error;
+  }
+};
+
+/**
+ * Kullanıcının bir etkinlikten ayrılması için
+ * @param eventId Etkinlik ID'si
+ * @param userId Kullanıcı ID'si
+ * @returns Başarı durumu
+ */
+export const leaveEvent = async (eventId: string, userId: string) => {
+  try {
+    logger.info(`Kullanıcı etkinlikten ayrılıyor: eventId=${eventId}, userId=${userId}`);
+    
+    // Önce etkinlik detaylarını kontrol et
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('Events')
+      .select(`
+        id,
+        status,
+        creator_id
+      `)
+      .eq('id', eventId)
+      .single();
+
+    if (eventError) {
+      logger.error('Etkinlik bilgileri alınırken hata:', eventError);
+      throw new Error('Etkinlik bulunamadı');
+    }
+    
+    // Etkinlik yaratıcısı ayrılamaz
+    if (event.creator_id === userId) {
+      logger.warn(`Etkinlik yaratıcısı etkinlikten ayrılmaya çalışıyor: eventId=${eventId}, userId=${userId}`);
+      throw new Error('Kendi oluşturduğunuz etkinlikten ayrılamazsınız');
+    }
+    
+    // Kullanıcı etkinliğe katılmış mı kontrol et
+    const { data: existingParticipation, error: participationError } = await supabaseAdmin
+      .from('Event_Participants')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (participationError) {
+      logger.error('Katılım kontrolü sırasında hata:', participationError);
+      throw new Error('Katılım durumu kontrol edilirken bir hata oluştu');
+    }
+    
+    if (!existingParticipation) {
+      logger.warn(`Kullanıcı etkinliğe katılmamış: eventId=${eventId}, userId=${userId}`);
+      throw new Error('Bu etkinliğe katılmadığınız için ayrılamazsınız');
+    }
+    
+    // Katılımcı kaydını sil
+    const { error: deleteError } = await supabaseAdmin
+      .from('Event_Participants')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+      
+    if (deleteError) {
+      logger.error('Etkinlikten ayrılırken hata:', deleteError);
+      throw new Error('Etkinlikten ayrılırken bir hata oluştu');
+    }
+    
+    logger.info(`Etkinlikten başarıyla ayrıldı: eventId=${eventId}, userId=${userId}`);
+    return { success: true, message: 'Etkinlikten başarıyla ayrıldınız' };
+    
+  } catch (error) {
+    logger.error('Etkinlikten ayrılma sırasında hata:', error);
     throw error;
   }
 };
@@ -1146,5 +1277,77 @@ export const getEventCounts = async (userId?: string): Promise<{
   } catch (error) {
     logger.error('Etkinlik sayıları alınırken hata oluştu:', error);
     throw error;
+  }
+};
+
+/**
+ * Etkinliğin katılımcılarını getirir
+ * @param eventId Etkinlik ID'si
+ * @returns Etkinliğe katılan kullanıcıların listesi
+ */
+export const getEventParticipants = async (eventId: string) => {
+  try {
+    logger.info(`Etkinlik katılımcıları getiriliyor: eventId=${eventId}`);
+    
+    // Önce etkinliğin var olduğunu ve aktif olduğunu kontrol et
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('Events')
+      .select('id, status')
+      .eq('id', eventId)
+      .single();
+      
+    if (eventError) {
+      logger.error(`Etkinlik bulunamadı: ${eventError.message}`);
+      throw new EventNotFoundError(eventId);
+    }
+    
+    // Etkinlik katılımcılarını sorgusu
+    const { data: participants, error } = await supabaseAdmin
+      .from('Event_Participants')
+      .select(`
+        role,
+        created_at,
+        user:users (
+          id,
+          first_name,
+          last_name,
+          email,
+          profile_image,
+          bio,
+          role
+        )
+      `)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: true });
+      
+    if (error) {
+      logger.error(`Katılımcıları getirme hatası: ${error.message}`);
+      throw new Error('Etkinlik katılımcıları alınırken bir hata oluştu');
+    }
+    
+    // Katılımcı listesini formatla
+    const formattedParticipants = participants.map(participant => {
+      // Tip dönüşümü yapalım
+      const user = participant.user as any;
+      return {
+        user_id: user?.id,
+        full_name: `${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
+        email: user?.email,
+        profile_image: user?.profile_image,
+        bio: user?.bio,
+        role: participant.role,
+        user_role: user?.role,
+        joined_at: participant.created_at
+      };
+    });
+    
+    logger.info(`${formattedParticipants.length} katılımcı bulundu`);
+    return formattedParticipants;
+  } catch (error) {
+    if (error instanceof EventNotFoundError) {
+      throw error;
+    }
+    logger.error('Katılımcıları getirme hatası:', error);
+    throw new Error('Etkinlik katılımcıları alınırken bir hata oluştu');
   }
 }; 

@@ -458,4 +458,52 @@ export class NotificationService {
       throw new Error(`Sistem bildirimi oluşturulamadı: ${error.message}`);
     }
   }
+
+  /**
+   * Etkinlik sahibine bildirim gönderir
+   * @param ownerId Etkinlik sahibinin kullanıcı ID'si
+   * @param eventId Etkinlik ID'si
+   * @param eventTitle Etkinlik başlığı
+   * @param participantName Katılımcı veya ayrılan kullanıcı adı
+   * @param actionType Eylem tipi: 'join' veya 'leave'
+   * @returns Oluşturulan bildirim
+   */
+  public async notifyEventOwner(
+    ownerId: string,
+    eventId: number | string,
+    eventTitle: string,
+    participantName: string,
+    actionType: 'join' | 'leave'
+  ): Promise<Notification> {
+    try {
+      console.log(`Etkinlik sahibine bildirim gönderiliyor: ${actionType}, eventId=${eventId}, ownerId=${ownerId}`);
+      
+      // Bildirim içeriğini oluştur
+      const action = actionType === 'join' ? 'katıldı' : 'ayrıldı';
+      const content = `${participantName}, '${eventTitle}' etkinliğinize ${action}`;
+      
+      // Bildirim türünü belirle
+      const notificationType: NotificationType = actionType === 'join' 
+        ? NotificationType.EVENT_JOIN 
+        : NotificationType.EVENT_LEAVE;
+      
+      // Link oluştur - etkinlik detay sayfasına yönlendir
+      const link = `/events/${eventId}`;
+      
+      // Bildirimi oluştur
+      const notification = await this.createNotification({
+        notification_type: notificationType,
+        content,
+        event_id: typeof eventId === 'string' ? parseInt(eventId) : eventId,
+        user_id: ownerId,
+        link
+      });
+      
+      console.log(`Etkinlik sahibine ${actionType} bildirimi gönderildi`);
+      return notification;
+    } catch (error: any) {
+      console.error('Etkinlik sahibine bildirim gönderme hatası:', error);
+      throw new Error(`Etkinlik sahibine bildirim gönderilemedi: ${error.message}`);
+    }
+  }
 } 

@@ -47,14 +47,15 @@ export const updateProfile = async (req: Request, res: Response) => {
 
 // PUT /api/profile/password
 /**
- * YAPILAN DEĞİŞİKLİKLER - 25 Nisan 2024
+ * YAPILAN DEĞİŞİKLİKLER - 6 Mayıs 2024
  * ---------------------------------------
  * 1. Şifre değiştirme endpoint'i güncellendi
+ *    - /api/auth/reset-password endpointi yerine bu endpoint kullanılacak
  *    - Mevcut şifre doğrulama kontrolü eklendi
  *    - Supabase Auth entegrasyonu iyileştirildi
  * 
  * 2. Validasyon kontrolleri güçlendirildi
- *    - Şifre uzunluğu kontrolü
+ *    - Şifre uzunluğu kontrolü (en az 6 karakter)
  *    - Şifre eşleşme kontrolü
  *    - Boş alan kontrolü
  * 
@@ -79,8 +80,8 @@ export const changePassword = async (req: Request, res: Response) => {
       throw new BadRequestError('New password and confirmation do not match');
     }
     
-    if (newPassword.length < 8) {
-      throw new BadRequestError('New password must be at least 8 characters long');
+    if (newPassword.length < 6) {
+      throw new BadRequestError('New password must be at least 6 characters long');
     }
 
     // First verify the current password

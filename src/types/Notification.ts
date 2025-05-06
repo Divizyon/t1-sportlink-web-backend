@@ -3,6 +3,8 @@ export enum NotificationType {
   NEW_REPORT = 'new_report',           // Yeni rapor oluşturulduğunda
   NEW_EVENT = 'new_event',             // Yeni etkinlik oluşturulduğunda
   EVENT_UPDATED = 'event_updated',     // Etkinlik güncellendiğinde
+  EVENT_JOIN = 'event_join',           // Kullanıcı etkinliğe katıldığında
+  EVENT_LEAVE = 'event_leave',         // Kullanıcı etkinlikten ayrıldığında
   USER_WATCHED = 'user_watched',       // Kullanıcı izlemeye alındığında
   USER_INACTIVE = 'user_inactive',     // Kullanıcı inaktif olduğunda
   USER_ACTIVE = 'user_active',         // Kullanıcı aktif olduğunda
