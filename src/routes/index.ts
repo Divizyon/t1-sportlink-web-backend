@@ -7,12 +7,14 @@ import newsRoutes from './newsRoutes';
 import reportRoutes from './reportRoutes';
 import securityRoutes from './securityRoutes';
 import announcementRoutes from './announcementRoutes';
-import { authenticate, requireAuth, requireAdmin } from '../middleware/authMiddleware';
+import { protect, optionalAuth, isAdmin } from '../middleware/authMiddleware';
+import friendshipRoutes from './friendshipRoutes';
+import messageRoutes from './messageRoutes';
 
 const router = express.Router();
 
 // Her isteği kimlik doğrulama middleware'inden geçir
-router.use(authenticate);
+router.use(optionalAuth);
 
 // Auth routes (public)
 router.use('/auth', authRoutes);
@@ -24,12 +26,16 @@ router.use('/sports', sportsRoutes);
 router.use('/announcements', announcementRoutes);
 
 // Protected routes (auth required)
-router.use('/user', requireAuth, userRoutes);
+router.use('/user', protect, userRoutes);
 router.use('/events', eventRoutes);
 router.use('/news', newsRoutes);
-router.use('/reports', requireAuth, reportRoutes);
+router.use('/reports', protect, reportRoutes);
 
 // Admin routes
-router.use('/security', requireAdmin, securityRoutes);
+router.use('/security', isAdmin, securityRoutes);
+
+// Mobil API rotaları
+router.use('/api/mobile/friendships', friendshipRoutes);
+router.use('/api/mobile/messages', messageRoutes);
 
 export default router; 
