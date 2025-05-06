@@ -99,10 +99,10 @@
  *         last_name:
  *           type: string
  *           description: User's last name
- *         role:
+ *         password_confirm:
  *           type: string
- *           enum: [ADMIN, STAFF, USER]
- *           description: User's role (defaults to 'USER')
+ *           format: password
+ *           description: User's password confirmation
  *     LoginDTO:
  *       type: object
  *       required:
@@ -144,9 +144,9 @@ export interface UserDetail {
 export interface CreateUserDTO {
   email: string;
   password: string;
+  password_confirm?: string;
   first_name: string;
   last_name: string;
-  role?: 'ADMIN' | 'STAFF' | 'USER';
 }
 
 export interface LoginDTO {

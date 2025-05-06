@@ -15,42 +15,101 @@ const router = express.Router();
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
- *     description: Creates a new user account with the provided information
+ *     summary: Yeni kullanıcı kaydı oluşturur
+ *     description: Yeni bir normal kullanıcı (USER rolü) oluşturur.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateUserDTO'
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - password_confirm
+ *               - first_name
+ *               - last_name
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Kullanıcı e-posta adresi
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 6
+ *                 description: Kullanıcı şifresi (en az 6 karakter)
+ *               password_confirm:
+ *                 type: string
+ *                 format: password
+ *                 description: Şifre doğrulama (şifre ile aynı olmalı)
+ *               first_name:
+ *                 type: string
+ *                 description: Kullanıcının adı
+ *               last_name:
+ *                 type: string
+ *                 description: Kullanıcının soyadı
  *     responses:
  *       201:
- *         description: User successfully registered
+ *         description: Kullanıcı başarıyla oluşturuldu
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *             example:
- *               user:
- *                 id: 550e8400-e29b-41d4-a716-446655440000
- *                 email: user@example.com
- *                 first_name: John
- *                 last_name: Doe
- *                 role: user
- *                 created_at: 2023-01-01T00:00:00.000Z
- *                 updated_at: 2023-01-01T00:00:00.000Z
- *               token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Kayıt işlemi başarılı.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         email:
+ *                           type: string
+ *                           format: email
+ *                         first_name:
+ *                           type: string
+ *                         last_name:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                           enum: [USER]
+ *                           default: USER
  *       400:
- *         description: Invalid input or email already exists
+ *         description: Geçersiz kayıt bilgileri
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               message: Email already in use
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Bu e-posta adresi zaten kullanılıyor.
  *       500:
- *         $ref: '#/components/responses/InternalServerError'
+ *         description: Sunucu hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Kayıt işlemi sırasında bir hata oluştu.
  */
 router.post('/register', AuthController.register);
 
@@ -58,42 +117,77 @@ router.post('/register', AuthController.register);
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Log in a user
- *     description: Authenticate a user and return a JWT token
+ *     summary: Kullanıcı girişi yapar
+ *     description: Kayıtlı kullanıcı bilgileriyle giriş yapar ve oturum bilgilerini döndürür.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/LoginDTO'
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Kullanıcı e-posta adresi
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: Kullanıcı şifresi
  *     responses:
  *       200:
- *         description: User successfully logged in
+ *         description: Giriş başarılı
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *             example:
- *               user:
- *                 id: 550e8400-e29b-41d4-a716-446655440000
- *                 email: user@example.com
- *                 first_name: John
- *                 last_name: Doe
- *                 role: user
- *                 created_at: 2023-01-01T00:00:00.000Z
- *                 updated_at: 2023-01-01T00:00:00.000Z
- *               token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     session:
+ *                       type: object
+ *                       properties:
+ *                         access_token:
+ *                           type: string
+ *                         refresh_token:
+ *                           type: string
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         email:
+ *                           type: string
+ *                           format: email
+ *                         first_name:
+ *                           type: string
+ *                         last_name:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                           enum: [USER, ADMIN]
  *       401:
- *         description: Invalid credentials
+ *         description: Geçersiz kimlik bilgileri
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               message: Invalid email or password
- *       500:
- *         $ref: '#/components/responses/InternalServerError'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: error
+ *                 message:
+ *                   type: string
+ *                   example: Geçersiz e-posta veya şifre.
  */
 router.post('/login', AuthController.login);
 

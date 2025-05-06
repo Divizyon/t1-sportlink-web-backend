@@ -77,11 +77,8 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
   try {
     console.log('Starting user creation process for:', userData.email);
     
-    // Önce email'in Supabase Auth'da kullanımda olup olmadığını kontrol et
-    // Bu kontrol doğrudan Auth servisi üzerinden yapılacak, users tablosunda değil
-    
-    console.log('Creating auth user...');
-    // Sadece Auth user oluştur
+    // Sadece Auth sisteminde kullanıcı oluştur, veritabanına kaydetme
+    console.log('Creating auth user only...');
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
@@ -89,7 +86,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
       user_metadata: {
         first_name: userData.first_name,
         last_name: userData.last_name,
-        role: userData.role || 'USER'
+        role: 'USER' // Tüm yeni kayıtlar için USER rolü kullan
       }
     });
 
@@ -108,13 +105,14 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
 
     console.log('Auth user created successfully:', authData.user.id);
     
-    // Users tablosuna kayıt eklemeden doğrudan auth verilerini dönüştürelim
+    // Veritabanına users tablosuna kayıt eklenmeyecek
+    // Auth verilerinden User nesnesini oluşturup döndür
     const user: User = {
       id: authData.user.id,
       email: userData.email,
       first_name: userData.first_name,
       last_name: userData.last_name,
-      role: userData.role || 'USER',
+      role: 'USER',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

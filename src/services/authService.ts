@@ -29,6 +29,12 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
     }
     
     console.log('Login successful for:', credentials.email);
+    console.log('Auth user data:', {
+      id: data.user?.id,
+      email: data.user?.email,
+      metadata: data.user?.user_metadata,
+      lastSignIn: data.user?.last_sign_in_at
+    });
     
     // Başarılı login işlemini kaydet
     const userFullName = data.user?.user_metadata?.first_name && data.user?.user_metadata?.last_name 
@@ -43,8 +49,10 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
       action: `Başarılı giriş / ${data.user?.email || 'bilinmeyen'}`
     });
     
-    // Kullanıcı başarıyla giriş yaptıysa ve last_sign_in_at verisi varsa
-    if (data.user && data.user.last_sign_in_at) {
+    // Kullanıcı başarıyla giriş yaptı, users tablosunda kontrol et ve yoksa ekle
+    if (data.user) {
+      console.log('Checking if user exists in users table, id:', data.user.id);
+      
       // Kullanıcının users tablosunda olup olmadığını kontrol et
       const { data: existingUser, error: userCheckError } = await supabaseAdmin
         .from('users')
@@ -52,35 +60,102 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
         .eq('id', data.user.id)
         .single();
       
-      if (userCheckError && userCheckError.code !== 'PGRST116') {
-        console.error('User check error:', userCheckError);
+      console.log('User check result:', { existingUser, error: userCheckError ? userCheckError.message : null });
+      
+      if (userCheckError) {
+        // PGRST116: Row not found hatası beklenebilir, kullanıcı yoksa bu hata gelir
+        if (userCheckError.code !== 'PGRST116') {
+          console.error('User check error details:', {
+            code: userCheckError.code,
+            message: userCheckError.message,
+            details: userCheckError.details,
+            hint: userCheckError.hint
+          });
+        } else {
+          console.log('User not found in database, will create a new record');
+        }
       }
       
       // Kullanıcı users tablosunda yoksa ekle
       if (!existingUser) {
+        console.log('Creating user record in users table, user details:', {
+          id: data.user.id,
+          email: data.user.email,
+          first_name: data.user.user_metadata?.first_name,
+          last_name: data.user.user_metadata?.last_name
+        });
+        
+        // Kullanıcı verilerini hazırla
+        const userData = {
+          id: data.user.id,
+          username: data.user.email?.split('@')[0] || '',
+          email: data.user.email || '',
+          first_name: data.user.user_metadata?.first_name || '',
+          last_name: data.user.user_metadata?.last_name || '',
+          phone: data.user.phone || '',
+          profile_picture: data.user.user_metadata?.avatar_url || '',
+          role: data.user.user_metadata?.role || 'USER',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        console.log('Inserting user data:', userData);
+        
         // RLS hatasını önlemek için supabaseAdmin kullan
-        const { error: insertError } = await supabaseAdmin
+        const { data: insertData, error: insertError } = await supabaseAdmin
           .from('users')
-          .insert({
-            id: data.user.id,
-            username: data.user.email?.split('@')[0] || '',
-            email: data.user.email || '',
-            first_name: data.user.user_metadata?.first_name || '',
-            last_name: data.user.user_metadata?.last_name || '',
-            phone: data.user.phone || '',
-            profile_picture: data.user.user_metadata?.avatar_url || '',
-            default_location_latitude: 0,
-            default_location_longitude: 0,
-            role: 'USER',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
+          .insert(userData)
+          .select();
+        
+        console.log('Insert result:', { 
+          success: !insertError, 
+          data: insertData, 
+          error: insertError ? {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint
+          } : null 
+        });
         
         if (insertError) {
           console.error('Error inserting user data to users table:', insertError);
+          logger.error(`Failed to create user record in database on first login: ${data.user.id}`, insertError);
+          
+          // Doğrudan başka bir sorgu ile tekrar deneyelim (bazı Supabase hataları için)
+          try {
+            console.log('Retrying insert with raw query...');
+            const { error: retryError } = await supabaseAdmin.rpc('insert_user_manually', {
+              p_id: data.user.id,
+              p_email: data.user.email || '',
+              p_first_name: data.user.user_metadata?.first_name || '',
+              p_last_name: data.user.user_metadata?.last_name || '',
+              p_role: 'USER'
+            });
+            
+            if (retryError) {
+              console.error('Retry insert error:', retryError);
+            } else {
+              console.log('Retry insert successful');
+            }
+          } catch (retryError) {
+            console.error('Manual insert retry error:', retryError);
+          }
         } else {
           console.log('User data successfully inserted to users table');
+          logger.info(`User created in database on first login: ${data.user.id} / ${data.user.email}`);
+          
+          // Güvenlik logu oluştur
+          await SecurityService.createLog({
+            type: 'user_update',
+            admin: userFullName,
+            ip: ip, 
+            status: 'success',
+            action: `Kullanıcı veritabanı kaydı oluşturuldu (ilk giriş) / ${data.user.email}`
+          });
         }
+      } else {
+        console.log('User already exists in database:', existingUser.id);
       }
     }
     
@@ -220,6 +295,8 @@ export const handleOAuthCallback = async (code: string) => {
     if (!data.user) {
       throw new Error('Kullanıcı bilgileri alınamadı');
     }
+    
+    console.log('OAuth login successful for:', data.user.email);
 
     // Kullanıcının users tablosunda olup olmadığını kontrol et
     const { data: existingUser, error: userCheckError } = await supabaseAdmin
@@ -228,21 +305,34 @@ export const handleOAuthCallback = async (code: string) => {
       .eq('id', data.user.id)
       .single();
 
+    // PGRST116: Row not found hatası beklenebilir, kullanıcı yoksa bu hata gelir
     if (userCheckError && userCheckError.code !== 'PGRST116') {
       console.error('Kullanıcı kontrolü hatası:', userCheckError);
     }
 
+    // Kullanıcı tam adı
+    const userFullName = 
+      (data.user.user_metadata?.given_name || data.user.user_metadata?.first_name) && 
+      (data.user.user_metadata?.family_name || data.user.user_metadata?.last_name)
+        ? `${data.user.user_metadata?.given_name || data.user.user_metadata?.first_name} ${data.user.user_metadata?.family_name || data.user.user_metadata?.last_name}`
+        : data.user.email || 'Bilinmeyen Kullanıcı';
+    
+    // IP adresini alamıyoruz, genel değer kullan
+    const ip = '0.0.0.0';
+
     // Kullanıcı users tablosunda yoksa ekle
     if (!existingUser) {
+      console.log('Creating user record in users table for OAuth user');
+      
       const { error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
           id: data.user.id,
           username: data.user.email?.split('@')[0] || '',
           email: data.user.email || '',
-          first_name: data.user.user_metadata?.given_name || '',
-          last_name: data.user.user_metadata?.family_name || '',
-          profile_picture: data.user.user_metadata?.picture || '',
+          first_name: data.user.user_metadata?.given_name || data.user.user_metadata?.first_name || '',
+          last_name: data.user.user_metadata?.family_name || data.user.user_metadata?.last_name || '',
+          profile_picture: data.user.user_metadata?.picture || data.user.user_metadata?.avatar_url || '',
           role: 'USER',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -250,6 +340,38 @@ export const handleOAuthCallback = async (code: string) => {
 
       if (insertError) {
         console.error('Users tablosuna veri ekleme hatası:', insertError);
+        logger.error(`Failed to create user record in database on first OAuth login: ${data.user.id}`, insertError);
+      } else {
+        console.log('User data successfully inserted to users table for OAuth user');
+        logger.info(`OAuth user created in database on first login: ${data.user.id} / ${data.user.email}`);
+        
+        // Güvenlik logu oluştur
+        try {
+          await SecurityService.createLog({
+            type: 'login',
+            admin: userFullName,
+            ip: ip,
+            status: 'success',
+            action: `Google ile ilk giriş / ${data.user.email}`
+          });
+        } catch (logError) {
+          console.error('OAuth security log error:', logError);
+        }
+      }
+    } else {
+      console.log('OAuth user already exists in database:', existingUser.id);
+      
+      // Başarılı OAuth girişini logla
+      try {
+        await SecurityService.createLog({
+          type: 'login',
+          admin: userFullName,
+          ip: ip,
+          status: 'success',
+          action: `Google ile giriş / ${data.user.email}`
+        });
+      } catch (logError) {
+        console.error('OAuth login security log error:', logError);
       }
     }
 

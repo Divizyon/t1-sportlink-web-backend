@@ -6,13 +6,49 @@ import { SecurityService } from '../services/securityService';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const userData: CreateUserDTO = req.body;
-    console.log('Register attempt with data:', userData);
+    const { email, password, password_confirm, first_name, last_name } = req.body;
+    
+    // Gerekli alanları kontrol et
+    if (!email || !password || !password_confirm || !first_name || !last_name) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Tüm alanları doldurun: isim, soyisim, e-posta ve şifre gereklidir.'
+      });
+    }
+    
+    // Şifrelerin eşleştiğini kontrol et
+    if (password !== password_confirm) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Şifreler eşleşmiyor. Lütfen aynı şifreyi tekrar girin.'
+      });
+    }
+    
+    // Şifre uzunluğu kontrolü
+    if (password.length < 6) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Şifre en az 6 karakter uzunluğunda olmalıdır.'
+      });
+    }
+    
+    // Email format kontrolü
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Geçerli bir e-posta adresi girin.'
+      });
+    }
     
     // IP adresini al
     const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
     
-    // Kullanıcı oluştur - Sadece Auth kullanıcısı oluşturulur, users tablosuna eklenmez
+    // User rolünde yeni kullanıcı oluştur (role parametresi artık gönderilmiyor)
+    const userData = { email, password, first_name, last_name };
+    console.log('Register attempt with data:', { ...userData, password: '***' });
+    
+    // Kullanıcı oluştur
     const newUser = await userService.createUser(userData);
     if (!newUser) {
       console.error('User creation failed: newUser is null');
@@ -20,7 +56,7 @@ export const register = async (req: Request, res: Response) => {
       // Başarısız kayıt işlemini logla
       await SecurityService.createLog({
         type: 'user_update',
-        admin: userData.email,
+        admin: email,
         ip,
         status: 'error',
         action: `Kayıt başarısız`
@@ -32,7 +68,7 @@ export const register = async (req: Request, res: Response) => {
       });
     }
     
-    console.log('User created successfully in Auth:', newUser.id);
+    console.log('User created successfully:', newUser.id);
     
     // Başarılı kayıt işlemini logla
     await SecurityService.createLog({
@@ -43,15 +79,17 @@ export const register = async (req: Request, res: Response) => {
       action: `Yeni kayıt / ${newUser.email}`
     });
     
+    // Başarılı yanıt
     res.status(201).json({
       status: 'success',
+      message: 'Kayıt işlemi başarılı.',
       data: {
         user: {
           id: newUser.id,
           email: newUser.email,
           first_name: newUser.first_name,
           last_name: newUser.last_name,
-          role: newUser.role
+          role: newUser.role // Role artık her zaman 'USER'
         }
       }
     });
