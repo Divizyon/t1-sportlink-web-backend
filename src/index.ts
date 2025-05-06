@@ -24,7 +24,6 @@ import newsExpiryChecker from './utils/newsExpiryChecker';
 import { warmupConnectionPool } from './config/supabase';
 import { setupStorageBuckets } from './config/bucketSetup';
 import { dbConnectionCheck } from './middleware/databaseMiddleware';
-import router from './routes/index'; // Ana router import edildi
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -61,9 +60,6 @@ setupSwagger(app);
 
 // Veritabanı bağlantı kontrolü middleware'ini ekle
 app.use(dbConnectionCheck);
-
-// Ana router'ı kullan
-app.use('/', router);
 
 // Routes
 app.use('/api/auth', authRoutes);

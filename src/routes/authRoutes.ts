@@ -315,43 +315,6 @@ router.post('/forgot-password', AuthController.requestPasswordReset);
 
 /**
  * @swagger
- * /api/auth/reset-password:
- *   post:
- *     summary: Reset password
- *     description: Reset user password with a new one
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ResetPasswordDTO'
- *     responses:
- *       200:
- *         description: Password reset successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *             example:
- *               status: success
- *               message: Şifreniz başarıyla güncellendi.
- *       400:
- *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               status: error
- *               message: Yeni şifre gereklidir.
- *       500:
- *         $ref: '#/components/responses/InternalServerError'
- */
-router.post('/reset-password', AuthController.resetPassword);
-
-/**
- * @swagger
  * /api/auth/resend-verification:
  *   post:
  *     summary: Resend verification email
@@ -405,42 +368,6 @@ router.post('/reset-password', AuthController.resetPassword);
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/resend-verification', AuthController.resendVerificationEmail);
-
-// Protected routes
-/**
- * @swagger
- * /api/auth/me:
- *   get:
- *     summary: Get current user information
- *     description: Retrieve the currently authenticated user's profile
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User information retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
- *             example:
- *               user:
- *                 id: 550e8400-e29b-41d4-a716-446655440000
- *                 email: user@example.com
- *                 first_name: John
- *                 last_name: Doe
- *                 role: user
- *                 created_at: 2023-01-01T00:00:00.000Z
- *                 updated_at: 2023-01-01T00:00:00.000Z
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         $ref: '#/components/responses/InternalServerError'
- */
-router.get('/me', protect, AuthController.getCurrentUser);
 
 /**
  * @swagger
