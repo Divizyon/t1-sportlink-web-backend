@@ -9,7 +9,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Profile
- *   description: User profile management
+ *   description: Kullanıcı profil yönetimi
  */
 
 // Tüm profil route'ları için kimlik doğrulama gerekli
@@ -19,13 +19,13 @@ router.use(protect);
  * @swagger
  * /api/profile:
  *   get:
- *     summary: Get current user profile
+ *     summary: Mevcut kullanıcı profilini getir
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: User profile data (name, email, phone, avatar)
+ *         description: Kullanıcı profil bilgileri (isim, e-posta, telefon, profil resmi)
  *         content:
  *           application/json:
  *             schema:
@@ -42,9 +42,9 @@ router.use(protect);
  *                   type: string
  *                   format: url
  *       401:
- *         description: Unauthorized
+ *         description: Yetkisiz erişim
  *       404:
- *         description: User not found
+ *         description: Kullanıcı bulunamadı
  */
 router.get('/', getProfile);
 
@@ -52,7 +52,7 @@ router.get('/', getProfile);
  * @swagger
  * /api/profile:
  *   put:
- *     summary: Update user profile
+ *     summary: Kullanıcı profilini güncelle
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
@@ -65,27 +65,27 @@ router.get('/', getProfile);
  *             properties:
  *               first_name:
  *                 type: string
- *                 description: User's first name
+ *                 description: Kullanıcının adı
  *               last_name:
  *                 type: string
- *                 description: User's last name
+ *                 description: Kullanıcının soyadı
  *               email:
  *                 type: string
  *                 format: email
- *                 description: User's email address (use with caution, might require verification)
+ *                 description: Kullanıcının e-posta adresi (dikkatli kullanın, doğrulama gerektirebilir)
  *               phone:
  *                 type: string
- *                 description: User's phone number
+ *                 description: Kullanıcının telefon numarası
  *             required:
  *               - first_name
  *               - last_name
  *     responses:
  *       200:
- *         description: Profile updated successfully
+ *         description: Profil başarıyla güncellendi
  *       400:
- *         description: Bad request (e.g., missing required fields)
+ *         description: Hatalı istek (örn. gerekli alanlar eksik)
  *       401:
- *         description: Unauthorized
+ *         description: Yetkisiz erişim
  */
 router.put('/', updateProfile);
 
@@ -93,7 +93,7 @@ router.put('/', updateProfile);
  * @swagger
  * /api/profile/password:
  *   put:
- *     summary: Change user password
+ *     summary: Kullanıcı şifresini değiştir
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
@@ -119,11 +119,11 @@ router.put('/', updateProfile);
  *               - confirmNewPassword
  *     responses:
  *       200:
- *         description: Password changed successfully
+ *         description: Şifre başarıyla değiştirildi
  *       400:
- *         description: Bad request (e.g., incorrect current password, passwords don't match, weak new password)
+ *         description: Hatalı istek (örn. mevcut şifre yanlış, şifreler eşleşmiyor, yeni şifre çok zayıf)
  *       401:
- *         description: Unauthorized
+ *         description: Yetkisiz erişim
  */
 router.put('/password', changePassword);
 
@@ -131,7 +131,7 @@ router.put('/password', changePassword);
  * @swagger
  * /api/profile/avatar:
  *   post:
- *     summary: Upload profile avatar
+ *     summary: Profil resmi yükle
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
@@ -145,12 +145,12 @@ router.put('/password', changePassword);
  *               avatar:
  *                 type: string
  *                 format: binary
- *                 description: The avatar image file to upload (e.g., profile.jpg).
+ *                 description: Yüklenecek profil resmi dosyası (örn. profil.jpg).
  *             required:
  *               - avatar
  *     responses:
  *       200:
- *         description: Avatar uploaded successfully
+ *         description: Profil resmi başarıyla yüklendi
  *         content:
  *           application/json:
  *             schema:
@@ -161,7 +161,7 @@ router.put('/password', changePassword);
  *                   example: success
  *                 message:
  *                   type: string
- *                   example: Avatar uploaded successfully
+ *                   example: Profil resmi başarıyla yüklendi
  *                 data:
  *                   type: object
  *                   properties:
@@ -169,9 +169,9 @@ router.put('/password', changePassword);
  *                       type: string
  *                       format: url
  *       400:
- *         description: Bad request (e.g., no file, invalid file type, file too large)
+ *         description: Hatalı istek (örn. dosya yok, geçersiz dosya türü, dosya çok büyük)
  *       401:
- *         description: Unauthorized
+ *         description: Yetkisiz erişim
  */
 router.post('/avatar', uploadImage, uploadAvatar); // upload middleware'ini kullanıyoruz
 
