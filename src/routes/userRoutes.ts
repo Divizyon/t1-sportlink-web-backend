@@ -627,4 +627,95 @@ router.post('/:userId/warning', protect, restrictTo('ADMIN'), sendWarningToUserC
  */
 router.put('/:userId/watch', restrictTo('ADMIN'), toggleUserWatch);
 
+/**
+ * @swagger
+ * /api/users/role/user:
+ *   get:
+ *     summary: USER rolündeki kullanıcıları listele
+ *     description: Sadece USER rolüne sahip kullanıcıları sayfalandırılmış olarak getirir
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Listelenmek istenen sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
+ *         description: Sayfa başına gösterilecek kullanıcı sayısı
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [mixed, new, active]
+ *           default: mixed
+ *         description: Sıralama türü - mixed (karışık), new (yeni kayıtlı), active (aktif kullanıcılar)
+ *     responses:
+ *       200:
+ *         description: Kullanıcılar başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           first_name:
+ *                             type: string
+ *                           last_name:
+ *                             type: string
+ *                           role:
+ *                             type: string
+ *                           event_count:
+ *                             type: integer
+ *                             description: Kullanıcının katıldığı etkinlik sayısı (sadece mixed sıralamada)
+ *                     meta:
+ *                       type: object
+ *                       properties:
+ *                         totalCount:
+ *                           type: integer
+ *                           description: Toplam kullanıcı sayısı
+ *                         page:
+ *                           type: integer
+ *                           description: Mevcut sayfa
+ *                         limit:
+ *                           type: integer
+ *                           description: Sayfa başına kullanıcı sayısı
+ *                         totalPages:
+ *                           type: integer
+ *                           description: Toplam sayfa sayısı
+ *                         sortBy:
+ *                           type: string
+ *                           description: Kullanılan sıralama türü
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/role/user', getUsersByRoleController);
+
 export default router;
