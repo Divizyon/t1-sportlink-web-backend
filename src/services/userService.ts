@@ -651,6 +651,7 @@ interface UserProfileData {
   first_name: string;
   last_name: string;
   total_events: number;
+  friend_count: number;
 }
 
 export const getUserProfileById = async (userId: string): Promise<UserProfileData> => {
@@ -674,6 +675,16 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
     logger.error(`Error getting event count for user ID: ${userId}`, eventError);
   }
 
+  // Arkadaş sayısını getir
+  const { getFriends } = await import('../services/friendshipService');
+  let friendCount = 0;
+  try {
+    const friends = await getFriends(userId);
+    friendCount = friends.length;
+  } catch (err) {
+    logger.error(`Error getting friend count for user ID: ${userId}`, err);
+  }
+
   return {
     name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
     email: data.email,
@@ -685,7 +696,8 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
     address: data.address,
     first_name: data.first_name,
     last_name: data.last_name,
-    total_events: eventCount || 0
+    total_events: eventCount || 0,
+    friend_count: friendCount
   };
 };
 
