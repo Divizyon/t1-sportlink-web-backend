@@ -3,6 +3,7 @@ import * as authService from '../services/authService';
 import * as userService from '../services/userService';
 import { LoginDTO, CreateUserDTO } from '../models/User';
 import { SecurityService } from '../services/securityService';
+import logger from '../utils/logger';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -161,7 +162,7 @@ export const login = async (req: Request, res: Response) => {
   try {
     const credentials: LoginDTO = req.body;
     
-    // IP adresini al
+    // IP adresini al (log için değil, authService.login için)
     const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
     
     const authData = await authService.login(credentials, ip);
@@ -221,32 +222,8 @@ export const googleAuthRedirect = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   try {
-    // Güvenlik logu için kullanıcı bilgilerini al
-    const userId = req.user?.id || 'Bilinmeyen';
-    const userEmail = req.user?.email || 'Bilinmeyen';
-    const firstName = req.user?.user_metadata?.first_name || '';
-    const lastName = req.user?.user_metadata?.last_name || '';
-    const userFullName = firstName && lastName 
-      ? `${firstName} ${lastName}` 
-      : userEmail;
-      
-    // IP adresini al
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
-    
+    // Doğrudan oturumu sonlandır
     await authService.logout();
-    
-    // Güvenlik log kaydı oluştur
-    try {
-      await SecurityService.createLog({
-        type: 'logout',
-        admin: userFullName,
-        ip,
-        status: 'success',
-        action: `Başarılı çıkış / ${userEmail}`
-      });
-    } catch (logError) {
-      console.error('Logout security log error:', logError);
-    }
     
     res.status(200).json({
       status: 'success',

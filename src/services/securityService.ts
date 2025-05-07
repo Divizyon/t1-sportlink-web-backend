@@ -3,11 +3,21 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import { SecurityLog, CreateSecurityLogDTO, SecurityLogFilters } from '../models/SecurityLog';
 import { PostgrestError } from '@supabase/supabase-js';
 import { Pool } from 'pg';
+import logger from '../utils/logger';
 
 // Doğrudan PostgreSQL bağlantısı
 const pool = new Pool({
   connectionString: process.env.DIRECT_URL,
 });
+
+export interface SecurityLogParams {
+  type: string;
+  admin: string;
+  ip: string;
+  status: string;
+  action: string;
+  admin_id?: string;
+}
 
 /**
  * Güvenlik logları için servis sınıfı
@@ -89,40 +99,35 @@ export const SecurityService = {
   /**
    * Yeni bir güvenlik logu oluştur
    */
-  async createLog(logData: CreateSecurityLogDTO): Promise<{ success: boolean, error: any }> {
-    const client = await pool.connect();
-    
+  async createLog(params: SecurityLogParams): Promise<{ success: boolean, message: string }> {
     try {
       const now = new Date();
+      const date = format(now, 'yyyy-MM-dd');
+      const time = format(now, 'HH:mm');
       
-      const insertQuery = `
-        INSERT INTO security_logs (type, admin, ip, date, time, status, action)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING *;
-      `;
+      // RLS aktif olduğunda bile çalışması için supabaseAdmin kullan
+      const { error } = await supabaseAdmin.from('security_logs').insert({
+        type: params.type,
+        admin: params.admin,
+        ip: params.ip,
+        date,
+        time,
+        status: params.status,
+        action: params.action,
+        created_at: now.toISOString(),
+        admin_id: params.admin_id || null
+      });
       
-      const result = await client.query(insertQuery, [
-        logData.type,
-        logData.admin,
-        logData.ip,
-        format(now, 'yyyy-MM-dd'),
-        format(now, 'HH:mm'),
-        logData.status,
-        logData.action
-      ]);
+      if (error) {
+        logger.error('Security log creation error:', error);
+        throw error;
+      }
       
-      return {
-        success: true,
-        error: null
-      };
+      return { success: true, message: 'Log created successfully' };
     } catch (error) {
-      console.error('Güvenlik logu oluşturulurken hata oluştu:', error);
-      return {
-        success: false,
-        error
-      };
-    } finally {
-      client.release();
+      logger.error('Security log error:', error);
+      // Sessizce başarısız ol - uygulamayı bloke etme
+      return { success: false, message: 'Failed to create security log' };
     }
   },
   

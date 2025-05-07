@@ -968,156 +968,228 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
 };
 
 /**
- * Kullanıcının bir etkinlikten ayrılması için
- * @param eventId Etkinlik ID'si
+ * Kullanıcının katıldığı tüm etkinlikleri getirir
  * @param userId Kullanıcı ID'si
- * @returns Başarı durumu
+ * @param page Sayfa numarası (1'den başlar)
+ * @param limit Sayfa başına gösterilecek etkinlik sayısı
+ * @returns Etkinlikler, toplam sayı ve sayfalama bilgileri
  */
-export const leaveEvent = async (eventId: string, userId: string) => {
+export const getUserParticipatedEvents = async (
+  userId: string,
+  page: number = 1,
+  limit: number = 10,
+  status?: string
+) => {
   try {
-    logger.info(`Kullanıcı etkinlikten ayrılıyor: eventId=${eventId}, userId=${userId}`);
+    logger.info(`Kullanıcının katıldığı etkinlikler alınıyor: userId=${userId}, page=${page}, limit=${limit}`);
     
-    // Önce etkinlik detaylarını kontrol et
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('Events')
-      .select(`
-        id,
-        status,
-        creator_id
-      `)
-      .eq('id', eventId)
-      .single();
-
-    if (eventError) {
-      logger.error('Etkinlik bilgileri alınırken hata:', eventError);
-      throw new Error('Etkinlik bulunamadı');
-    }
-    
-    // Etkinlik yaratıcısı ayrılamaz
-    if (event.creator_id === userId) {
-      logger.warn(`Etkinlik yaratıcısı etkinlikten ayrılmaya çalışıyor: eventId=${eventId}, userId=${userId}`);
-      throw new Error('Kendi oluşturduğunuz etkinlikten ayrılamazsınız');
-    }
-    
-    // Kullanıcı etkinliğe katılmış mı kontrol et
-    const { data: existingParticipation, error: participationError } = await supabaseAdmin
+    // Bypass RLS: use admin client
+    let query = supabaseAdmin
       .from('Event_Participants')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (participationError) {
-      logger.error('Katılım kontrolü sırasında hata:', participationError);
-      throw new Error('Katılım durumu kontrol edilirken bir hata oluştu');
-    }
-    
-    if (!existingParticipation) {
-      logger.warn(`Kullanıcı etkinliğe katılmamış: eventId=${eventId}, userId=${userId}`);
-      throw new Error('Bu etkinliğe katılmadığınız için ayrılamazsınız');
-    }
-    
-    // Katılımcı kaydını sil
-    const { error: deleteError } = await supabaseAdmin
-      .from('Event_Participants')
-      .delete()
-      .eq('event_id', eventId)
+      .select('event_id', { count: 'exact' })
       .eq('user_id', userId);
-      
-    if (deleteError) {
-      logger.error('Etkinlikten ayrılırken hata:', deleteError);
-      throw new Error('Etkinlikten ayrılırken bir hata oluştu');
+    
+    const { count: totalCount, error: countError } = await query;
+    
+    if (countError) {
+      logger.error('Katılınan etkinlik sayısı alınırken hata:', countError);
+      throw new Error('Katılınan etkinlik sayısı alınırken bir hata oluştu');
     }
     
-    logger.info(`Etkinlikten başarıyla ayrıldı: eventId=${eventId}, userId=${userId}`);
-    return { success: true, message: 'Etkinlikten başarıyla ayrıldınız' };
+    // Bypass RLS: use admin client
+    let eventQuery = supabaseAdmin
+      .from('Event_Participants')
+      .select(`
+        event:Events (
+          id,
+          sport_id,
+          title,
+          description,
+          event_date,
+          start_time,
+          end_time,
+          location_name,
+          location_latitude,
+          location_longitude,
+          max_participants,
+          status,
+          created_at,
+          updated_at,
+          creator_id,
+          sport:Sports!Events_sport_id_fkey (
+            id,
+            name,
+            icon
+          ),
+          creator:users!Events_creator_id_fkey (
+            id,
+            first_name,
+            last_name,
+            profile_picture
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .order('joined_at', { ascending: false });
+    
+    // Eğer status filtresi varsa, etkinlikleri filtrele
+    if (status) {
+      eventQuery = eventQuery.eq('event.status', status);
+    }
+    
+    // Sayfalama
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    eventQuery = eventQuery.range(from, to);
+    
+    const { data, error } = await eventQuery;
+    
+    if (error) {
+      logger.error('Katılınan etkinlikler alınırken hata:', error);
+      throw new Error('Katılınan etkinlikler alınırken bir hata oluştu');
+    }
+    
+    // Null olmayanları filtrele ve event nesnesini al
+    const events = data
+      .filter(item => item.event)
+      .map(item => {
+        const event = item.event as any;
+        return {
+          ...event,
+          sport: event.sport,
+          creator: {
+            id: event.creator?.id,
+            name: `${event.creator?.first_name || ''} ${event.creator?.last_name || ''}`.trim(),
+            profile_picture: event.creator?.profile_picture
+          }
+        };
+      });
+    
+    return {
+      events,
+      meta: {
+        totalCount: totalCount || 0,
+        page,
+        limit,
+        pageCount: Math.ceil((totalCount || 0) / limit)
+      }
+    };
     
   } catch (error) {
-    logger.error('Etkinlikten ayrılma sırasında hata:', error);
+    logger.error('Kullanıcının katıldığı etkinlikler alınırken hata:', error);
     throw error;
   }
 };
 
-interface PaginationOptions {
-  page: number;
-  limit: number;
-  userId?: string;
-}
-
-interface PaginatedEvents {
-  events: any[];
-  totalEvents: number;
-  totalPages: number;
-}
-
-export const getEventsByStatus = async (
-  status: string,
-  options: PaginationOptions
-): Promise<PaginatedEvents> => {
+/**
+ * Kullanıcının oluşturduğu tüm etkinlikleri getirir
+ * @param userId Kullanıcı ID'si
+ * @param page Sayfa numarası (1'den başlar)
+ * @param limit Sayfa başına gösterilecek etkinlik sayısı
+ * @returns Etkinlikler, toplam sayı ve sayfalama bilgileri
+ */
+export const getUserCreatedEvents = async (
+  userId: string,
+  page: number = 1,
+  limit: number = 10,
+  status?: string
+) => {
   try {
-    const { page, limit, userId } = options;
-    const offset = (page - 1) * limit;
+    logger.info(`Kullanıcının oluşturduğu etkinlikler alınıyor: userId=${userId}, page=${page}, limit=${limit}`);
     
-    // Status değerini büyük harfe çevir (veritabanında büyük harflerle tutuluyor)
-    const uppercaseStatus = status.toUpperCase();
-    logger.info(`${status} durumundaki etkinlikler sorgulanıyor. Veritabanı formatında: ${uppercaseStatus}`);
+    // Bypass RLS: use admin client
+    let countQuery = supabaseAdmin
+      .from('Events')
+      .select('id', { count: 'exact' })
+      .eq('creator_id', userId);
+      
+    if (status) {
+      countQuery = countQuery.eq('status', status);
+    }
     
-    // Sorgu oluşturucu - supabaseAdmin kullan (RLS bypass)
+    const { count: totalCount, error: countError } = await countQuery;
+    
+    if (countError) {
+      logger.error('Oluşturulan etkinlik sayısı alınırken hata:', countError);
+      throw new Error('Oluşturulan etkinlik sayısı alınırken bir hata oluştu');
+    }
+    
+    // Bypass RLS: use admin client
     let query = supabaseAdmin
       .from('Events')
-      .select('*, sport:Sports!Events_sport_id_fkey(name), creator:users!Events_creator_id_fkey(first_name, last_name), participants:Event_Participants(user_id)', { count: 'exact' })
-      .eq('status', uppercaseStatus) // Büyük harfli status ile karşılaştır
+      .select(`
+        id,
+        sport_id,
+        title,
+        description,
+        event_date,
+        start_time,
+        end_time,
+        location_name,
+        location_latitude,
+        location_longitude,
+        max_participants,
+        status,
+        created_at,
+        updated_at,
+        sport:Sports!Events_sport_id_fkey (
+          id,
+          name,
+          icon
+        )
+      `)
+      .eq('creator_id', userId)
       .order('created_at', { ascending: false });
     
-    // Eğer userId belirtilmişse, o kullanıcıya ait etkinlikleri filtrele
-    if (userId) {
-      query = query.eq('creator_id', userId);
+    // Eğer status filtresi varsa, etkinlikleri filtrele
+    if (status) {
+      query = query.eq('status', status);
     }
     
-    // Sayfalama uygula
-    query = query.range(offset, offset + limit - 1);
+    // Sayfalama
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
     
-    // Sorguyu çalıştır
-    const { data, error, count } = await query;
+    const { data, error } = await query;
     
     if (error) {
-      logger.error(`${status} durumundaki etkinlikler alınırken hata:`, error);
-      throw error;
+      logger.error('Oluşturulan etkinlikler alınırken hata:', error);
+      throw new Error('Oluşturulan etkinlikler alınırken bir hata oluştu');
     }
     
-    // Toplam sayfa sayısını hesapla
-    const totalEvents = count || 0;
-    const totalPages = Math.ceil(totalEvents / limit);
-    
-    logger.info(`${status} durumundaki etkinlikler başarıyla alındı. Toplam: ${totalEvents}, Sayfa: ${page}/${totalPages}`);
-    
-    // Etkinlik verilerini formatlayarak dön
-    const formattedEvents = data.map(event => ({
-      id: event.id,
-      title: event.title,
-      description: event.description,
-      event_date: event.event_date,
-      start_time: event.start_time,
-      end_time: event.end_time,
-      location_name: event.location_name,
-      location_latitude: event.location_latitude,
-      location_longitude: event.location_longitude,
-      max_participants: event.max_participants,
-      status: event.status,
-      created_at: event.created_at,
-      updated_at: event.updated_at,
-      sport: event.sport,
-      creator: event.creator,
-      participant_count: event.participants ? event.participants.length : 0
-    }));
+    // Her etkinlik için katılımcı sayısını getir
+    const eventsWithParticipantCounts = await Promise.all(
+      data.map(async (event) => {
+        const { count: participantCount, error: participantError } = await supabase
+          .from('Event_Participants')
+          .select('event_id', { count: 'exact' })
+          .eq('event_id', event.id);
+          
+        if (participantError) {
+          logger.warn(`Etkinlik katılımcı sayısı alınamadı, id=${event.id}:`, participantError);
+        }
+        
+        return {
+          ...event,
+          sport: event.sport,
+          participant_count: participantCount || 0
+        };
+      })
+    );
     
     return {
-      events: formattedEvents,
-      totalEvents,
-      totalPages
+      events: eventsWithParticipantCounts,
+      meta: {
+        totalCount: totalCount || 0,
+        page,
+        limit,
+        pageCount: Math.ceil((totalCount || 0) / limit)
+      }
     };
+    
   } catch (error) {
-    logger.error(`${status} durumundaki etkinlikler alınırken beklenmeyen hata:`, error);
+    logger.error('Kullanıcının oluşturduğu etkinlikler alınırken hata:', error);
     throw error;
   }
 };
@@ -1312,7 +1384,7 @@ export const getEventParticipants = async (eventId: string) => {
           first_name,
           last_name,
           email,
-          profile_image,
+          profile_picture,
           bio,
           role
         )
@@ -1333,7 +1405,7 @@ export const getEventParticipants = async (eventId: string) => {
         user_id: user?.id,
         full_name: `${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
         email: user?.email,
-        profile_image: user?.profile_image,
+        profile_image: user?.profile_picture,
         bio: user?.bio,
         role: participant.role,
         user_role: user?.role,
@@ -1349,5 +1421,150 @@ export const getEventParticipants = async (eventId: string) => {
     }
     logger.error('Katılımcıları getirme hatası:', error);
     throw new Error('Etkinlik katılımcıları alınırken bir hata oluştu');
+  }
+};
+
+/**
+ * Belirli bir durumdaki etkinlikleri getiren fonksiyon
+ * @param status Etkinlik durumu (pending, active, rejected, completed)
+ * @param options Sayfalama ve filtreleme seçenekleri
+ * @returns Etkinlikler, toplam sayı ve sayfalama bilgileri
+ */
+export const getEventsByStatus = async (
+  status: string,
+  options: {
+    page?: number;
+    limit?: number;
+    userId?: string;
+  }
+): Promise<{
+  events: any[];
+  totalPages: number;
+  totalEvents: number;
+}> => {
+  try {
+    const { page = 1, limit = 10, userId } = options;
+    
+    // Durumu Enum değerine dönüştür (status lowercase gelir, ama enum UPPERCASE)
+    const statusUpper = status.toUpperCase();
+    logger.info(`${statusUpper} durumundaki etkinlikler alınıyor: sayfa=${page}, limit=${limit}, userId=${userId || 'tümü'}`);
+    
+    // Sorgu oluştur
+    let query = supabaseAdmin
+      .from('Events')
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(*),
+        creator:users!Events_creator_id_fkey(
+          id,
+          first_name,
+          last_name,
+          role
+        ),
+        participants:Event_Participants(count)
+      `, { count: 'exact' })
+      .eq('status', statusUpper);
+    
+    // Eğer userId belirtilmişse, sadece o kullanıcının etkinliklerini getir
+    if (userId) {
+      query = query.eq('creator_id', userId);
+    }
+    
+    // Toplam etkinlik sayısını al
+    const { count: totalEvents, error: countError } = await query;
+    
+    if (countError) {
+      logger.error(`${status} durumundaki etkinlikler sayılırken hata:`, countError);
+      throw new Error(`${status} durumundaki etkinlikler sayılırken bir hata oluştu.`);
+    }
+    
+    // Toplam sayfa sayısını hesapla
+    const totalPages = Math.ceil((totalEvents || 0) / limit);
+    
+    // Sayfalama için offset hesapla
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    
+    // Belirtilen sayfadaki etkinlikleri getir
+    const { data: events, error } = await query
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    
+    if (error) {
+      logger.error(`${status} durumundaki etkinlikler alınırken hata:`, error);
+      throw new Error(`${status} durumundaki etkinlikler alınırken bir hata oluştu.`);
+    }
+    
+    logger.info(`${events?.length || 0} adet ${status} durumundaki etkinlik başarıyla alındı.`);
+    
+    // Etkinlikleri formatla ve döndür
+    return {
+      events: events ? events.map(event => formatEvent(event)) : [],
+      totalPages,
+      totalEvents: totalEvents || 0
+    };
+  } catch (error) {
+    logger.error(`${status} durumundaki etkinlikler alınırken beklenmeyen hata:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Kullanıcının etkinlikten ayrılmasını sağlayan fonksiyon
+ * @param eventId Etkinlik ID'si
+ * @param userId Kullanıcı ID'si
+ * @returns Başarı mesajı
+ */
+export const leaveEvent = async (eventId: string, userId: string) => {
+  try {
+    logger.info(`Kullanıcı etkinlikten ayrılıyor: eventId=${eventId}, userId=${userId}`);
+    
+    // Önce etkinliğin varolduğunu kontrol et
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('Events')
+      .select('id, status')
+      .eq('id', eventId)
+      .single();
+      
+    if (eventError) {
+      logger.error('Etkinlik bulunamadı:', eventError);
+      throw new Error('Etkinlik bulunamadı');
+    }
+    
+    // Kullanıcının bu etkinliğe katılıp katılmadığını kontrol et
+    const { data: participation, error: participationError } = await supabaseAdmin
+      .from('Event_Participants')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+      
+    if (participationError) {
+      logger.error('Katılım durumu kontrol edilirken hata:', participationError);
+      throw new Error('Katılım durumu kontrol edilirken bir hata oluştu');
+    }
+    
+    if (!participation) {
+      logger.warn(`Kullanıcı bu etkinliğe zaten katılmamış: eventId=${eventId}, userId=${userId}`);
+      throw new Error('Bu etkinliğe katılmadığınız için ayrılamazsınız');
+    }
+    
+    // Etkinlikten ayrıl
+    const { error: leaveError } = await supabaseAdmin
+      .from('Event_Participants')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+      
+    if (leaveError) {
+      logger.error('Etkinlikten ayrılırken hata:', leaveError);
+      throw new Error('Etkinlikten ayrılırken bir hata oluştu');
+    }
+    
+    logger.info(`Kullanıcı başarıyla etkinlikten ayrıldı: eventId=${eventId}, userId=${userId}`);
+    return { success: true, message: 'Etkinlikten başarıyla ayrıldınız' };
+  } catch (error) {
+    logger.error('Etkinlikten ayrılırken hata:', error);
+    throw error;
   }
 }; 

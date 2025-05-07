@@ -15,16 +15,6 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
 
     if (error) {
       console.error('Supabase auth error:', error);
-      
-      // Başarısız login girişimini kaydet
-      await SecurityService.createLog({
-        type: 'login',
-        admin: credentials.email,
-        ip: ip,
-        status: 'error',
-        action: `Başarısız giriş: ${error.message}`
-      });
-      
       throw error;
     }
     
@@ -34,19 +24,6 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
       email: data.user?.email,
       metadata: data.user?.user_metadata,
       lastSignIn: data.user?.last_sign_in_at
-    });
-    
-    // Başarılı login işlemini kaydet
-    const userFullName = data.user?.user_metadata?.first_name && data.user?.user_metadata?.last_name 
-      ? `${data.user.user_metadata.first_name} ${data.user.user_metadata.last_name}` 
-      : data.user?.email || 'Bilinmeyen Kullanıcı';
-    
-    await SecurityService.createLog({
-      type: 'login',
-      admin: userFullName,
-      ip: ip,
-      status: 'success',
-      action: `Başarılı giriş / ${data.user?.email || 'bilinmeyen'}`
     });
     
     // Kullanıcı başarıyla giriş yaptı, users tablosunda kontrol et ve yoksa ekle
@@ -146,15 +123,6 @@ export const login = async (credentials: LoginDTO, ip: string = '127.0.0.1') => 
         } else {
           console.log('User data successfully inserted to users table');
           logger.info(`User created in database on first login: ${data.user.id} / ${data.user.email}`);
-          
-          // Güvenlik logu oluştur
-          await SecurityService.createLog({
-            type: 'user_update',
-            admin: userFullName,
-            ip: ip, 
-            status: 'success',
-            action: `Kullanıcı veritabanı kaydı oluşturuldu (ilk giriş) / ${data.user.email}`
-          });
         }
       } else {
         console.log('User already exists in database:', existingUser.id);
@@ -312,16 +280,6 @@ export const handleOAuthCallback = async (code: string) => {
       console.error('Kullanıcı kontrolü hatası:', userCheckError);
     }
 
-    // Kullanıcı tam adı
-    const userFullName = 
-      (data.user.user_metadata?.given_name || data.user.user_metadata?.first_name) && 
-      (data.user.user_metadata?.family_name || data.user.user_metadata?.last_name)
-        ? `${data.user.user_metadata?.given_name || data.user.user_metadata?.first_name} ${data.user.user_metadata?.family_name || data.user.user_metadata?.last_name}`
-        : data.user.email || 'Bilinmeyen Kullanıcı';
-    
-    // IP adresini alamıyoruz, genel değer kullan
-    const ip = '0.0.0.0';
-
     // Kullanıcı users tablosunda yoksa ekle
     if (!existingUser) {
       console.log('Creating user record in users table for OAuth user');
@@ -346,35 +304,9 @@ export const handleOAuthCallback = async (code: string) => {
       } else {
         console.log('User data successfully inserted to users table for OAuth user');
         logger.info(`OAuth user created in database on first login: ${data.user.id} / ${data.user.email}`);
-        
-        // Güvenlik logu oluştur
-        try {
-          await SecurityService.createLog({
-            type: 'login',
-            admin: userFullName,
-            ip: ip,
-            status: 'success',
-            action: `Google ile ilk giriş / ${data.user.email}`
-          });
-        } catch (logError) {
-          console.error('OAuth security log error:', logError);
-        }
       }
     } else {
       console.log('OAuth user already exists in database:', existingUser.id);
-      
-      // Başarılı OAuth girişini logla
-      try {
-        await SecurityService.createLog({
-          type: 'login',
-          admin: userFullName,
-          ip: ip,
-          status: 'success',
-          action: `Google ile giriş / ${data.user.email}`
-        });
-      } catch (logError) {
-        console.error('OAuth login security log error:', logError);
-      }
     }
 
     return {

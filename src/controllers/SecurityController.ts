@@ -70,13 +70,13 @@ export const SecurityController = {
         });
       }
       
-      const { success, error } = await SecurityService.createLog(logData);
+      const { success, message } = await SecurityService.createLog(logData);
       
       if (!success) {
         return res.status(500).json({
           success: false,
           message: 'Güvenlik logu oluşturulurken bir hata oluştu',
-          error: error?.message
+          error: message
         });
       }
       
