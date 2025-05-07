@@ -3,6 +3,7 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import * as userService from '../services/userService';
 import { User } from '../models/User';
 import logger from '../utils/logger';
+import { getSupabaseForToken } from '../config/supabaseClient';
 
 // Extend Express Request type to include user property
 declare global {
@@ -46,7 +47,10 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
     // 2) Verify token
     logger.info('Token doğrulanıyor...');
-    const { data, error } = await supabase.auth.getUser(token);
+    
+    // Supabase client with JWT for RLS and auth
+    const supa = getSupabaseForToken(token);
+    const { data, error } = await supa.auth.getUser();
 
     if (error) {
       logger.error('Token doğrulama hatası:', error);
@@ -146,10 +150,13 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     }
 
     // 2) Token'ı doğrula
-    const { data, error } = await supabase.auth.getUser(token);
+    
+    // Supabase client with JWT for RLS and auth
+    const supa = getSupabaseForToken(token);
+    const { data: dataOptional, error: errorOptional } = await supa.auth.getUser();
 
     // Token geçersizse, isteği doğrudan ilerlet
-    if (error || !data.user) {
+    if (errorOptional || !dataOptional.user) {
       logger.info('Geçersiz token, misafir kullanıcı olarak devam ediliyor');
       return next();
     }
@@ -158,7 +165,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('status')
-      .eq('id', data.user.id)
+      .eq('id', dataOptional.user.id)
       .single();
 
     if (userError) {
@@ -172,23 +179,23 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
     // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz
     // ama bulunamazsa bile devam ediyoruz
-    const userProfile = await userService.findUserById(data.user.id);
+    const userProfile = await userService.findUserById(dataOptional.user.id);
     
     // Kullanıcı bilgilerini request'e ekle
-    req.user = data.user;
-    req.userId = data.user.id;
+    req.user = dataOptional.user;
+    req.userId = dataOptional.user.id;
     const defaultUser: DefaultUser = {
-      id: data.user.id,
-      email: data.user.email || '',
-      first_name: data.user.user_metadata?.first_name || 'Test',
-      last_name: data.user.user_metadata?.last_name || 'User',
+      id: dataOptional.user.id,
+      email: dataOptional.user.email || '',
+      first_name: dataOptional.user.user_metadata?.first_name || 'Test',
+      last_name: dataOptional.user.user_metadata?.last_name || 'User',
       role: 'USER',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
     req.userProfile = userProfile || defaultUser;
     
-    logger.info(`Kullanıcı doğrulandı, ID: ${data.user.id}`);
+    logger.info(`Kullanıcı doğrulandı, ID: ${dataOptional.user.id}`);
     next();
   } catch (error) {
     // Hata durumunda bile isteği ilerlet

@@ -983,8 +983,8 @@ export const getUserParticipatedEvents = async (
   try {
     logger.info(`Kullanıcının katıldığı etkinlikler alınıyor: userId=${userId}, page=${page}, limit=${limit}`);
     
-    // Toplam katılınan etkinlik sayısını al
-    let query = supabase
+    // Bypass RLS: use admin client
+    let query = supabaseAdmin
       .from('Event_Participants')
       .select('event_id', { count: 'exact' })
       .eq('user_id', userId);
@@ -996,8 +996,8 @@ export const getUserParticipatedEvents = async (
       throw new Error('Katılınan etkinlik sayısı alınırken bir hata oluştu');
     }
     
-    // Katılınan etkinlikleri detaylarıyla birlikte getir
-    let eventQuery = supabase
+    // Bypass RLS: use admin client
+    let eventQuery = supabaseAdmin
       .from('Event_Participants')
       .select(`
         event:Events (
@@ -1097,13 +1097,12 @@ export const getUserCreatedEvents = async (
   try {
     logger.info(`Kullanıcının oluşturduğu etkinlikler alınıyor: userId=${userId}, page=${page}, limit=${limit}`);
     
-    // Toplam oluşturulan etkinlik sayısını al
-    let countQuery = supabase
+    // Bypass RLS: use admin client
+    let countQuery = supabaseAdmin
       .from('Events')
       .select('id', { count: 'exact' })
       .eq('creator_id', userId);
       
-    // Eğer status filtresi varsa, sayıma da uygula
     if (status) {
       countQuery = countQuery.eq('status', status);
     }
@@ -1115,8 +1114,8 @@ export const getUserCreatedEvents = async (
       throw new Error('Oluşturulan etkinlik sayısı alınırken bir hata oluştu');
     }
     
-    // Oluşturulan etkinlikleri detaylarıyla birlikte getir
-    let query = supabase
+    // Bypass RLS: use admin client
+    let query = supabaseAdmin
       .from('Events')
       .select(`
         id,
@@ -1385,7 +1384,7 @@ export const getEventParticipants = async (eventId: string) => {
           first_name,
           last_name,
           email,
-          profile_image,
+          profile_picture,
           bio,
           role
         )
@@ -1406,7 +1405,7 @@ export const getEventParticipants = async (eventId: string) => {
         user_id: user?.id,
         full_name: `${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
         email: user?.email,
-        profile_image: user?.profile_image,
+        profile_image: user?.profile_picture,
         bio: user?.bio,
         role: participant.role,
         user_role: user?.role,
