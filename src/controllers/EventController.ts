@@ -1204,4 +1204,102 @@ export const getEventParticipants = async (req: Request, res: Response) => {
       message: 'Etkinlik katılımcıları getirilirken bir hata oluştu.'
     });
   }
+};
+
+/**
+ * Kullanıcının katıldığı etkinlikleri getirir
+ */
+export const getUserParticipatedEvents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string;
+
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+
+    logger.info(`Kullanıcının katıldığı etkinlikleri getirme isteği: userId=${userId}, page=${page}, limit=${limit}, status=${status || 'all'}`);
+
+    try {
+      const result = await eventService.getUserParticipatedEvents(userId, page, limit, status);
+      
+      return res.status(200).json({
+        status: 'success',
+        results: result.events.length,
+        data: {
+          events: result.events,
+          meta: result.meta
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.warn(`Kullanıcının katıldığı etkinlikleri getirme hatası: ${error.message}`);
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Kullanıcının katıldığı etkinlikleri getirme hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Kullanıcının katıldığı etkinlikler getirilirken bir hata oluştu.'
+    });
+  }
+};
+
+/**
+ * Kullanıcının oluşturduğu etkinlikleri getirir
+ */
+export const getUserCreatedEvents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string;
+
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+
+    logger.info(`Kullanıcının oluşturduğu etkinlikleri getirme isteği: userId=${userId}, page=${page}, limit=${limit}, status=${status || 'all'}`);
+
+    try {
+      const result = await eventService.getUserCreatedEvents(userId, page, limit, status);
+      
+      return res.status(200).json({
+        status: 'success',
+        results: result.events.length,
+        data: {
+          events: result.events,
+          meta: result.meta
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.warn(`Kullanıcının oluşturduğu etkinlikleri getirme hatası: ${error.message}`);
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Kullanıcının oluşturduğu etkinlikleri getirme hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Kullanıcının oluşturduğu etkinlikler getirilirken bir hata oluştu.'
+    });
+  }
 }; 

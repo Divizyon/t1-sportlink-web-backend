@@ -876,4 +876,146 @@ router.post('/:id/leave', protect, EventController.leaveEvent);
  */
 router.get('/:id/participants', protect, EventController.getEventParticipants);
 
+/**
+ * @swagger
+ * /api/events/my/participated:
+ *   get:
+ *     summary: Kullanıcının katıldığı etkinlikleri getirir
+ *     description: Giriş yapmış kullanıcının katıldığı tüm etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, completed, cancelled, rejected, pending]
+ *         description: Etkinlik durumuna göre filtreleme (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Kullanıcının katıldığı etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 5
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *                     meta:
+ *                       type: object
+ *                       properties:
+ *                         totalCount:
+ *                           type: integer
+ *                           example: 15
+ *                         page:
+ *                           type: integer
+ *                           example: 1
+ *                         limit:
+ *                           type: integer
+ *                           example: 10
+ *                         pageCount:
+ *                           type: integer
+ *                           example: 2
+ *       401:
+ *         description: Yetkilendirme hatası
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get('/my/participated', protect, EventController.getUserParticipatedEvents);
+
+/**
+ * @swagger
+ * /api/events/my/created:
+ *   get:
+ *     summary: Kullanıcının oluşturduğu etkinlikleri getirir
+ *     description: Giriş yapmış kullanıcının oluşturduğu tüm etkinlikleri sayfalanmış olarak listeler
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Sayfa başına etkinlik sayısı
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, completed, cancelled, rejected, pending]
+ *         description: Etkinlik durumuna göre filtreleme (opsiyonel)
+ *     responses:
+ *       200:
+ *         description: Kullanıcının oluşturduğu etkinlikler başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 results:
+ *                   type: integer
+ *                   example: 3
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     events:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Event'
+ *                     meta:
+ *                       type: object
+ *                       properties:
+ *                         totalCount:
+ *                           type: integer
+ *                           example: 8
+ *                         page:
+ *                           type: integer
+ *                           example: 1
+ *                         limit:
+ *                           type: integer
+ *                           example: 10
+ *                         pageCount:
+ *                           type: integer
+ *                           example: 1
+ *       401:
+ *         description: Yetkilendirme hatası
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get('/my/created', protect, EventController.getUserCreatedEvents);
+
 export default router; 
