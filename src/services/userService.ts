@@ -862,4 +862,167 @@ export const getUserReports = async (userId: string): Promise<AdminReportInfo[]>
     // Hata olsa bile boş dizi döndür
     return [];
   }
+};
+
+/**
+ * Sadece USER rolündeki kullanıcıları sayfalandırılmış şekilde getirir
+ * @param page Sayfa numarası (1'den başlar)
+ * @param limit Sayfa başına kaç kullanıcı getirileceği
+ * @param sortBy Sıralama kriteri: 'new' (yeni kullanıcılar) veya 'active' (aktif kullanıcılar) veya 'mixed' (karışık)
+ * @returns Kullanıcılar ve sayfalama bilgileri
+ */
+export const getUsersByRole = async (page: number = 1, limit: number = 10, sortBy: string = 'mixed') => {
+  try {
+    logger.info(`USER rolündeki kullanıcılar getiriliyor: sayfa=${page}, limit=${limit}, sıralama=${sortBy}`);
+    
+    // Toplam kullanıcı sayısını al
+    const { count, error: countError } = await supabaseAdmin
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'USER');
+    
+    if (countError) {
+      logger.error('Kullanıcı sayısı alınırken hata oluştu:', countError);
+      throw new Error('Kullanıcı sayısı alınırken bir hata oluştu');
+    }
+    
+    // Sayfalama hesapları
+    const totalCount = count || 0;
+    const totalPages = Math.ceil(totalCount / limit);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    
+    if (sortBy === 'mixed') {
+      // Tüm kullanıcıları getir
+      const { data: users, error: usersError } = await supabaseAdmin
+        .from('users')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          role,
+          created_at,
+          updated_at,
+          profile_picture,
+          status,
+          gender,
+          birthday_date,
+          address,
+          phone,
+          bio
+        `)
+        .eq('role', 'USER');
+        
+      if (usersError) {
+        logger.error('Kullanıcılar alınırken hata oluştu:', usersError);
+        throw new Error('Kullanıcılar alınırken bir hata oluştu');
+      }
+      
+      // Her kullanıcı için etkinlik sayısını ayrı sorgu ile al
+      const usersWithEventCounts = await Promise.all(
+        users.map(async (user) => {
+          // Kullanıcının katıldığı etkinlik sayısını al
+          const { count: eventCount, error: eventCountError } = await supabaseAdmin
+            .from('Event_Participants')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+          
+          if (eventCountError) {
+            logger.warn(`Kullanıcının etkinlik sayısı alınırken hata: ${user.id}`, eventCountError);
+            return { ...user, event_count: 0 };
+          }
+          
+          return { ...user, event_count: eventCount || 0 };
+        })
+      );
+      
+      // Etkinlik sayısına göre sırala (çoktan aza)
+      const sortedUsers = usersWithEventCounts.sort((a, b) => {
+        // Önce etkinlik sayısına göre sırala (çoktan aza)
+        if (b.event_count !== a.event_count) {
+          return b.event_count - a.event_count;
+        }
+        
+        // Etkinlik sayıları eşitse, kayıt tarihine göre sırala (yeniden eskiye)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      
+      // Sayfalandırma uygula
+      const paginatedUsers = sortedUsers.slice(from, from + limit);
+      
+      logger.info(`${paginatedUsers.length} kullanıcı bulundu`);
+      
+      return {
+        users: paginatedUsers,
+        meta: {
+          totalCount,
+          page,
+          limit,
+          totalPages,
+          sortBy
+        }
+      };
+    } else {
+      // Sıralama kriterine göre sorguyu oluştur
+      let query = supabaseAdmin
+        .from('users')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          role,
+          created_at,
+          updated_at,
+          profile_picture,
+          status,
+          gender,
+          birthday_date,
+          address,
+          phone,
+          bio
+        `)
+        .eq('role', 'USER');
+      
+      // Sıralama kriterine göre sırala
+      if (sortBy === 'new') {
+        query = query.order('created_at', { ascending: false });
+        logger.info('Kullanıcılar yeni kayıt olma tarihine göre sıralanıyor');
+      } else if (sortBy === 'active') {
+        query = query.order('updated_at', { ascending: false });
+        logger.info('Kullanıcılar son aktiflik tarihine göre sıralanıyor');
+      } else {
+        query = query.order('created_at', { ascending: false });
+        logger.info('Kullanıcılar varsayılan olarak yeni kayıt olma tarihine göre sıralanıyor');
+      }
+      
+      // Sayfalama uygula
+      query = query.range(from, to);
+      
+      // Kullanıcıları getir
+      const { data, error } = await query;
+      
+      if (error) {
+        logger.error('Kullanıcılar alınırken hata oluştu:', error);
+        throw new Error('Kullanıcılar alınırken bir hata oluştu');
+      }
+      
+      logger.info(`${data.length} kullanıcı bulundu`);
+      
+      return {
+        users: data,
+        meta: {
+          totalCount,
+          page,
+          limit,
+          totalPages,
+          sortBy
+        }
+      };
+    }
+  } catch (error) {
+    logger.error('getUsersByRole fonksiyonunda hata:', error);
+    throw error;
+  }
 }; 

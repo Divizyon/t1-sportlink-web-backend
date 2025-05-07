@@ -338,4 +338,30 @@ export const toggleUserWatch = async (req: Request, res: Response) => {
       message: 'Bir hata oluştu'
     });
   }
+};
+
+/**
+ * USER rolündeki kullanıcıları sayfalandırılmış şekilde getiren controller
+ */
+export const getUsersByRoleController = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const sortBy = (req.query.sort as string) || 'mixed'; // 'new', 'active' veya 'mixed'
+    
+    logger.info(`USER rolündeki kullanıcılar isteniyor: sayfa=${page}, limit=${limit}, sıralama=${sortBy}`);
+    
+    const result = await userService.getUsersByRole(page, limit, sortBy);
+    
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  } catch (error) {
+    logger.error('USER rolündeki kullanıcıları getirme hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Kullanıcılar listelenirken bir hata oluştu'
+    });
+  }
 }; 
