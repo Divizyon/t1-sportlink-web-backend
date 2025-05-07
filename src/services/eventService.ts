@@ -1499,7 +1499,7 @@ export const getEventsByStatus = async (
     
     // Etkinlikleri formatla ve döndür
     return {
-      events: events ? events.map(event => formatEvent(event)) : [],
+      events: events ? events.map((event: any) => formatEvent(event)) : [],
       totalPages,
       totalEvents: totalEvents || 0
     };
@@ -1565,6 +1565,81 @@ export const leaveEvent = async (eventId: string, userId: string) => {
     return { success: true, message: 'Etkinlikten başarıyla ayrıldınız' };
   } catch (error) {
     logger.error('Etkinlikten ayrılırken hata:', error);
+    throw error;
+  }
+};
+
+export const getNearbyEvents = async (
+  latitude: number,
+  longitude: number, 
+  distance: number = 1
+): Promise<any[]> => {
+  try {
+    logger.info(`Yakındaki etkinlikleri getirme: lat=${latitude}, lng=${longitude}, distance=${distance}km`);
+    
+    // İlişkilerin tam adlarını kullanıyoruz ve Event_Participants'i kaldırıyoruz
+    const { data, error } = await supabase.from('Events')
+      .select(`
+        *,
+        users!Events_creator_id_fkey(id, first_name, last_name, profile_picture), 
+        Sports!Events_sport_id_fkey(id, name, icon)
+      `)
+      .eq('status', 'ACTIVE');
+
+    if (error) {
+      logger.error('Yakındaki etkinlikler getirilirken hata oluştu:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      logger.info('Yakında etkinlik bulunamadı');
+      return [];
+    }
+
+    // Etkinlikleri filtreleyip aralarındaki mesafeyi hesaplayan JavaScript fonksiyonu
+    const eventsWithDistance = data.map(event => {
+      // Haversine formülü ile mesafe hesaplama
+      const eventLat = event.location_latitude;
+      const eventLng = event.location_longitude;
+      
+      if (!eventLat || !eventLng) {
+        return { ...event, distance_km: Infinity };
+      }
+      
+      // Dünya yarıçapı (km)
+      const R = 6371;
+      
+      // Dereceyi radyana çevirme
+      const lat1 = latitude * Math.PI / 180;
+      const lat2 = eventLat * Math.PI / 180;
+      const deltaLat = (eventLat - latitude) * Math.PI / 180;
+      const deltaLng = (eventLng - longitude) * Math.PI / 180;
+      
+      // Haversine formülü
+      const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
+                Math.cos(lat1) * Math.cos(lat2) * 
+                Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance_km = R * c;
+      
+      // İlişki adlarını formatladığımız için creator ve sport alanlarını da güncelliyoruz
+      return {
+        ...event,
+        distance_km,
+        creator: event.users,  // İlişki adı değiştiği için alanları da güncelliyoruz
+        sport: event.Sports,  // İlişki adı değiştiği için alanları da güncelliyoruz
+        participant_count: 0  // Şimdilik 0 bırakalım, izin sorunu olduğu için Event_Participants'e erişemiyoruz
+      };
+    })
+    // Mesafe filtresi uygula
+    .filter(event => event.distance_km <= distance)
+    // Mesafeye göre sırala
+    .sort((a, b) => a.distance_km - b.distance_km);
+    
+    logger.info(`${eventsWithDistance.length} yakın etkinlik bulundu (${distance}km mesafede)`);
+    return eventsWithDistance;
+  } catch (error) {
+    logger.error('getNearbyEvents fonksiyonunda hata:', error);
     throw error;
   }
 }; 

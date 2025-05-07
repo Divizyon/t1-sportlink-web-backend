@@ -14,6 +14,37 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/events/nearby:
+ *   get:
+ *     summary: Kullanıcının yakınındaki etkinlikleri getirir
+ *     tags: [Events]
+ *     parameters:
+ *       - in: query
+ *         name: latitude
+ *         schema:
+ *           type: number
+ *         required: true
+ *         description: Kullanıcının enlem değeri
+ *       - in: query
+ *         name: longitude
+ *         schema:
+ *           type: number
+ *         required: true
+ *         description: Kullanıcının boylam değeri
+ *       - in: query
+ *         name: distance
+ *         schema:
+ *           type: number
+ *           default: 1
+ *         description: Arama yarıçapı (km)
+ *     responses:
+ *       200:
+ *         description: Yakındaki etkinlikler başarıyla getirildi
+ */
+router.get('/nearby', optionalAuth, EventController.getNearbyEvents);
+
+/**
+ * @swagger
  * /api/events/counts:
  *   get:
  *     summary: Farklı durumlardaki etkinliklerin sayılarını döndürür
