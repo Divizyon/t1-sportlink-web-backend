@@ -6,7 +6,8 @@ import {
   toggleUserStatusController,
   deleteUserController,
   sendWarningToUserController,
-  toggleUserWatch
+  toggleUserWatch,
+  getUsersByRoleController
 } from '../controllers/UserController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -70,6 +71,84 @@ router.get('/', restrictTo('ADMIN'), getAllUsers);
 
 /**
  * @swagger
+ * /api/users/role/user:
+ *   get:
+ *     summary: USER rolündeki kullanıcıları listele
+ *     description: Sadece USER rolüne sahip kullanıcıları sayfalandırılmış olarak getirir
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Listelenmek istenen sayfa numarası
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
+ *         description: Sayfa başına gösterilecek kullanıcı sayısı
+ *     responses:
+ *       200:
+ *         description: Kullanıcılar başarıyla listelendi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           first_name:
+ *                             type: string
+ *                           last_name:
+ *                             type: string
+ *                           role:
+ *                             type: string
+ *                     meta:
+ *                       type: object
+ *                       properties:
+ *                         totalCount:
+ *                           type: integer
+ *                           description: Toplam kullanıcı sayısı
+ *                         page:
+ *                           type: integer
+ *                           description: Mevcut sayfa
+ *                         limit:
+ *                           type: integer
+ *                           description: Sayfa başına kullanıcı sayısı
+ *                         totalPages:
+ *                           type: integer
+ *                           description: Toplam sayfa sayısı
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/role/user', getUsersByRoleController);
+
+/**
+ * @swagger
  * /api/users/{id}/details:
  *   get:
  *     summary: Get detailed user information
@@ -108,7 +187,6 @@ router.get('/', restrictTo('ADMIN'), getAllUsers);
  *                       type: string
  *                     email:
  *                       type: string
- *                       format: email
  *                     role:
  *                       type: string
  *                     status:

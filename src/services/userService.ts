@@ -874,4 +874,76 @@ export const getUserReports = async (userId: string): Promise<AdminReportInfo[]>
     // Hata olsa bile boş dizi döndür
     return [];
   }
+};
+
+/**
+ * Sadece USER rolündeki kullanıcıları sayfalandırılmış şekilde getirir
+ * @param page Sayfa numarası (1'den başlar)
+ * @param limit Sayfa başına kaç kullanıcı getirileceği
+ * @returns Kullanıcılar ve sayfalama bilgileri
+ */
+export const getUsersByRole = async (page: number = 1, limit: number = 10) => {
+  try {
+    logger.info(`USER rolündeki kullanıcılar getiriliyor: sayfa=${page}, limit=${limit}`);
+    
+    // Toplam kullanıcı sayısını al
+    const { count, error: countError } = await supabaseAdmin
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'USER');
+    
+    if (countError) {
+      logger.error('Kullanıcı sayısı alınırken hata oluştu:', countError);
+      throw new Error('Kullanıcı sayısı alınırken bir hata oluştu');
+    }
+    
+    // Sayfalama hesapları
+    const totalCount = count || 0;
+    const totalPages = Math.ceil(totalCount / limit);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    
+    // Kullanıcıları getir
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select(`
+        id,
+        email,
+        first_name,
+        last_name,
+        role,
+        created_at,
+        updated_at,
+        profile_picture,
+        status,
+        gender,
+        birthday_date,
+        address,
+        phone,
+        bio
+      `)
+      .eq('role', 'USER')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    
+    if (error) {
+      logger.error('Kullanıcılar alınırken hata oluştu:', error);
+      throw new Error('Kullanıcılar alınırken bir hata oluştu');
+    }
+    
+    logger.info(`${data.length} kullanıcı bulundu`);
+    
+    return {
+      users: data,
+      meta: {
+        totalCount,
+        page,
+        limit,
+        totalPages
+      }
+    };
+  } catch (error) {
+    logger.error('getUsersByRole fonksiyonunda hata:', error);
+    throw error;
+  }
 }; 

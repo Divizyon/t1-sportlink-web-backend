@@ -7,6 +7,7 @@ import supabase, { supabaseAdmin } from '../config/supabase';
 import { NotificationService } from '../services/NotificationService';
 import { SportsService } from '../services/SportsService';
 import { SecurityLogService } from '../services/securityLogService';
+import { handleError } from '../utils/errorHandler';
 
 export const updateEventStatus = async (req: Request, res: Response) => {
   try {
@@ -1301,5 +1302,44 @@ export const getUserCreatedEvents = async (req: Request, res: Response) => {
       status: 'error',
       message: 'Kullanıcının oluşturduğu etkinlikler getirilirken bir hata oluştu.'
     });
+  }
+};
+
+export const getNearbyEvents = async (req: Request, res: Response) => {
+  try {
+    const { latitude, longitude, distance = 1 } = req.query;
+    
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Konum bilgisi gereklidir (latitude ve longitude parametreleri)'
+      });
+    }
+    
+    const userLat = parseFloat(latitude as string);
+    const userLng = parseFloat(longitude as string);
+    const searchRadius = parseFloat(distance as string);
+    
+    if (isNaN(userLat) || isNaN(userLng) || isNaN(searchRadius)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Geçersiz koordinat veya mesafe değeri'
+      });
+    }
+    
+    // Kullanıcı bilgisi opsiyonel olarak alınacak (token varsa)
+    const userId = req.user?.id;
+    logger.info(`Yakındaki etkinlikler isteniyor: lat=${userLat}, lng=${userLng}, distance=${searchRadius}km, userId=${userId || 'misafir'}`);
+    
+    const events = await eventService.getNearbyEvents(userLat, userLng, searchRadius);
+    
+    res.status(200).json({
+      status: 'success',
+      results: events.length,
+      data: { events }
+    });
+    
+  } catch (error) {
+    handleError(error as Error, res);
   }
 }; 
