@@ -7,6 +7,7 @@ import newsRoutes from './newsRoutes';
 import reportRoutes from './reportRoutes';
 import securityRoutes from './securityRoutes';
 import announcementRoutes from './announcementRoutes';
+import eventRatingRoutes from './eventRatingRoutes';
 import { authenticate, requireAuth, requireAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -28,6 +29,9 @@ router.use('/user', requireAuth, userRoutes);
 router.use('/events', eventRoutes);
 router.use('/news', newsRoutes);
 router.use('/reports', requireAuth, reportRoutes);
+
+// Event ratings routes
+router.use('/event-ratings', eventRatingRoutes);
 
 // Admin routes
 router.use('/security', requireAdmin, securityRoutes);
