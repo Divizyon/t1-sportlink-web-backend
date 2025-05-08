@@ -364,4 +364,62 @@ export const getUsersByRoleController = async (req: Request, res: Response) => {
       message: 'Kullanıcılar listelenirken bir hata oluştu'
     });
   }
+};
+
+/**
+ * Kullanıcı hesabını dondurur (30 gün içinde giriş yapılmazsa inactive olur)
+ */
+export const freezeAccountController = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız'
+      });
+    }
+
+    const result = await userService.freezeUserAccount(userId);
+    
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('Hesap dondurma controller hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Hesap dondurma işlemi sırasında bir hata oluştu',
+      error: errorMessage
+    });
+  }
+};
+
+/**
+ * Kullanıcı hesabının silinmesini talep eder (hesabı inactive yapar)
+ */
+export const deleteAccountController = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız'
+      });
+    }
+
+    const result = await userService.requestAccountDeletion(userId);
+    
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('Hesap silme controller hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Hesap silme işlemi sırasında bir hata oluştu',
+      error: errorMessage
+    });
+  }
 }; 

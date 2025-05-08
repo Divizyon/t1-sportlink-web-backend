@@ -1036,4 +1036,121 @@ export const getUsersByRole = async (page: number = 1, limit: number = 10, sortB
     logger.error('getUsersByRole fonksiyonunda hata:', error);
     throw error;
   }
+};
+
+/**
+ * Kullanıcı hesabını dondurur, 30 gün içinde giriş yapılmazsa hesap inactive olur
+ * @param userId Kullanıcı ID
+ * @returns İşlem sonucu
+ */
+export const freezeUserAccount = async (userId: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    logger.info(`Kullanıcı hesabı dondurma işlemi başlatılıyor, Kullanıcı ID: ${userId}`);
+    
+    // Kullanıcının varlığını kontrol et
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, email, status')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      logger.error('Kullanıcı bulunamadı:', userError);
+      throw new Error('Kullanıcı bulunamadı');
+    }
+    
+    // Kullanıcı zaten inactive ise hata ver
+    if (userData.status === 'inactive') {
+      throw new Error('Hesap zaten devre dışı durumdadır');
+    }
+    
+    // Hesabı dondur (freeze_date ve freeze_status güncelle)
+    const freezeDate = new Date().toISOString();
+    
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        freeze_status: true,
+        freeze_date: freezeDate,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+      
+    if (updateError) {
+      logger.error('Hesap dondurma hatası:', updateError);
+      throw new Error('Hesap dondurulurken bir hata oluştu');
+    }
+    
+    logger.info(`Kullanıcı hesabı donduruldu, Kullanıcı ID: ${userId}, Dondurma Tarihi: ${freezeDate}`);
+    
+    return {
+      success: true,
+      message: 'Hesabınız donduruldu. 30 gün içinde giriş yapmazsanız hesabınız devre dışı kalacaktır.'
+    };
+  } catch (error) {
+    logger.error('Hesap dondurma işlemi hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    return {
+      success: false,
+      message: errorMessage
+    };
+  }
+};
+
+/**
+ * Kullanıcı hesabının silinmesini talep eder, hesabı inactive yapar
+ * @param userId Kullanıcı ID
+ * @returns İşlem sonucu
+ */
+export const requestAccountDeletion = async (userId: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    logger.info(`Kullanıcı hesabı silme talebi başlatılıyor, Kullanıcı ID: ${userId}`);
+    
+    // Kullanıcının varlığını kontrol et
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, email, status')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      logger.error('Kullanıcı bulunamadı:', userError);
+      throw new Error('Kullanıcı bulunamadı');
+    }
+    
+    // Kullanıcı zaten inactive ise hata ver
+    if (userData.status === 'inactive') {
+      throw new Error('Hesap zaten devre dışı durumdadır');
+    }
+    
+    // Hesabı inactive yap
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        status: 'inactive',
+        deletion_requested: true,
+        deletion_date: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+      
+    if (updateError) {
+      logger.error('Hesap silme talebi hatası:', updateError);
+      throw new Error('Hesap silme talebi işlenirken bir hata oluştu');
+    }
+    
+    logger.info(`Kullanıcı hesabı silme talebi tamamlandı, hesap inactive yapıldı, Kullanıcı ID: ${userId}`);
+    
+    return {
+      success: true,
+      message: 'Hesabınız başarıyla devre dışı bırakıldı. KVKK gereği verileriniz sistemde saklanacaktır.'
+    };
+  } catch (error) {
+    logger.error('Hesap silme talebi hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    return {
+      success: false,
+      message: errorMessage
+    };
+  }
 }; 
