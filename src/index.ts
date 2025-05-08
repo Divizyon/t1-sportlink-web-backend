@@ -16,6 +16,7 @@ import newsRoutes from './routes/newsRoutes';
 import newsScraperRoutes from './routes/newsScraperRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import announcementRoutes from './routes/announcementRoutes';
+import eventRatingRoutes from './routes/eventRatingRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
@@ -81,6 +82,7 @@ app.use('/api/news', newsRoutes);
 app.use('/api/news-scraper', newsScraperRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/event-ratings', eventRatingRoutes);
 
 // Mobil API Routes
 import mobileFriendshipRoutes from './routes/friendshipRoutes';
