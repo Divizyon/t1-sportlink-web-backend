@@ -43,6 +43,7 @@ export const setupSwagger = (app: Express): void => {
         { name: 'News Scraper', description: 'Haber scraping işlemleri' },
         { name: 'Announcements', description: 'Duyuru yönetimi' },
         { name: 'Notifications', description: 'Bildirim yönetimi' },
+        { name: 'Mobile Notifications', description: 'Mobil bildirim yönetimi' },
       ],
       paths: {
         '/api/stats/weekly': {
@@ -804,6 +805,375 @@ export const setupSwagger = (app: Express): void => {
                         status: { type: 'string', example: 'success' },
                         message: { type: 'string', example: 'Test bildirimi oluşturuldu' },
                         data: { $ref: '#/components/schemas/Notification' }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        // Mobil Bildirim API'leri
+        '/api/mobile/notifications/register-device': {
+          post: {
+            tags: ['Mobile Notifications'],
+            summary: 'Cihaz token\'ını kaydet',
+            description: 'Kullanıcının mobil cihaz bilgilerini ve push notification token\'ını kaydeder',
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['deviceToken', 'deviceType'],
+                    properties: {
+                      deviceToken: {
+                        type: 'string',
+                        description: 'FCM veya APNS için cihaz token\'ı',
+                        example: 'e12dH8nJQQC-NRs7xKqaB0:APA91bGxyz...'
+                      },
+                      deviceType: {
+                        type: 'string',
+                        description: 'Cihaz tipi',
+                        enum: ['ios', 'android'],
+                        example: 'android'
+                      },
+                      appVersion: {
+                        type: 'string',
+                        description: 'Uygulama versiyonu',
+                        example: '1.0.0'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Cihaz başarıyla kaydedildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        message: {
+                          type: 'string',
+                          example: 'Cihaz token\'ı başarıyla kaydedildi'
+                        },
+                        data: {
+                          $ref: '#/components/schemas/UserDevice'
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Geçersiz istek',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        error: {
+                          type: 'string',
+                          example: 'Device token ve device type zorunludur'
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/mobile/notifications': {
+          get: {
+            tags: ['Mobile Notifications'],
+            summary: 'Kullanıcının bildirimlerini getir',
+            description: 'Kullanıcıya ait tüm bildirimleri getirir, isteğe bağlı olarak filtrelenebilir',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                name: 'limit',
+                in: 'query',
+                description: 'Sayfa başına bildirim sayısı',
+                schema: {
+                  type: 'integer',
+                  default: 20
+                }
+              },
+              {
+                name: 'offset',
+                in: 'query',
+                description: 'Atlanacak bildirim sayısı (sayfalama için)',
+                schema: {
+                  type: 'integer',
+                  default: 0
+                }
+              },
+              {
+                name: 'read_status',
+                in: 'query',
+                description: 'Okunma durumuna göre filtrele',
+                schema: {
+                  type: 'boolean'
+                }
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Bildirimler başarıyla getirildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        count: {
+                          type: 'integer',
+                          example: 15
+                        },
+                        data: {
+                          type: 'array',
+                          items: {
+                            $ref: '#/components/schemas/MobileNotification'
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/mobile/notifications/unread-count': {
+          get: {
+            tags: ['Mobile Notifications'],
+            summary: 'Okunmamış bildirim sayısını getir',
+            description: 'Kullanıcının okunmamış bildirim sayısını getirir',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Okunmamış bildirim sayısı başarıyla getirildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        count: {
+                          type: 'integer',
+                          example: 5
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/mobile/notifications/{id}/read': {
+          patch: {
+            tags: ['Mobile Notifications'],
+            summary: 'Bildirimi okundu olarak işaretle',
+            description: 'Belirli bir bildirimi okundu olarak işaretler',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              {
+                name: 'id',
+                in: 'path',
+                description: 'Bildirim ID',
+                required: true,
+                schema: {
+                  type: 'integer'
+                }
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Bildirim okundu olarak işaretlendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        message: {
+                          type: 'string',
+                          example: 'Bildirim okundu olarak işaretlendi'
+                        },
+                        data: {
+                          $ref: '#/components/schemas/MobileNotification'
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Geçersiz bildirim ID',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        error: {
+                          type: 'string',
+                          example: 'Geçersiz bildirim ID'
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/mobile/notifications/mark-all-read': {
+          patch: {
+            tags: ['Mobile Notifications'],
+            summary: 'Tüm bildirimleri okundu olarak işaretle',
+            description: 'Kullanıcının tüm okunmamış bildirimlerini okundu olarak işaretler',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              '200': {
+                description: 'Tüm bildirimler okundu olarak işaretlendi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        message: {
+                          type: 'string',
+                          example: '8 bildirim okundu olarak işaretlendi'
+                        },
+                        count: {
+                          type: 'integer',
+                          example: 8
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '401': { $ref: '#/components/responses/UnauthorizedError' },
+              '500': { $ref: '#/components/responses/InternalServerError' }
+            }
+          }
+        },
+        '/api/mobile/notifications/test': {
+          post: {
+            tags: ['Mobile Notifications'],
+            summary: 'Test bildirimi gönder',
+            description: 'Geliştirme amaçlı olarak test bildirimi gönderir',
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['deviceToken', 'platform', 'title', 'body'],
+                    properties: {
+                      deviceToken: {
+                        type: 'string',
+                        description: 'FCM veya APNS için cihaz token\'ı',
+                        example: 'e12dH8nJQQC-NRs7xKqaB0:APA91bGxyz...'
+                      },
+                      platform: {
+                        type: 'string',
+                        description: 'Platform tipi',
+                        enum: ['ios', 'android'],
+                        example: 'android'
+                      },
+                      title: {
+                        type: 'string',
+                        description: 'Bildirim başlığı',
+                        example: 'Test Bildirimi'
+                      },
+                      body: {
+                        type: 'string',
+                        description: 'Bildirim içeriği',
+                        example: 'Bu bir test bildirimidir!'
+                      },
+                      data: {
+                        type: 'object',
+                        description: 'Bildirimle beraber gönderilecek ek veri',
+                        example: {
+                          deepLink: "sportlink://test"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Test bildirimi gönderildi',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: {
+                          type: 'boolean',
+                          example: true
+                        },
+                        message: {
+                          type: 'string',
+                          example: 'Test bildirimi başarıyla gönderildi'
+                        },
+                        data: {
+                          $ref: '#/components/schemas/MobileNotification'
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Geçersiz istek',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        error: {
+                          type: 'string',
+                          example: 'deviceToken, platform, title ve body alanları zorunludur'
+                        }
                       }
                     }
                   }
@@ -1596,6 +1966,107 @@ export const setupSwagger = (app: Express): void => {
                 description: 'Sayfalandırma için başlangıç değeri'
               }
             }
+          },
+          UserDevice: {
+            type: 'object',
+            properties: {
+              deviceToken: {
+                type: 'string',
+                description: 'FCM veya APNS için cihaz token\'ı',
+                example: 'e12dH8nJQQC-NRs7xKqaB0:APA91bGxyz...'
+              },
+              deviceType: {
+                type: 'string',
+                description: 'Cihaz tipi',
+                enum: ['ios', 'android'],
+                example: 'android'
+              },
+              appVersion: {
+                type: 'string',
+                description: 'Uygulama versiyonu',
+                example: '1.0.0'
+              }
+            }
+          },
+          MobileNotification: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'integer',
+                description: 'Bildirimin benzersiz tanımlayıcısı'
+              },
+              title: {
+                type: 'string',
+                description: 'Bildirim başlığı'
+              },
+              body: {
+                type: 'string',
+                description: 'Bildirim içeriği'
+              },
+              notification_type: {
+                $ref: '#/components/schemas/MobileNotificationType',
+                description: 'Bildirimin türü'
+              },
+              read_status: {
+                type: 'boolean',
+                description: 'Bildirimin okunma durumu'
+              },
+              send_status: {
+                $ref: '#/components/schemas/SendStatus',
+                description: 'Bildirimin gönderilme durumu'
+              },
+              created_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Bildirimin oluşturulma tarihi'
+              },
+              sent_at: {
+                type: 'string',
+                format: 'date-time',
+                description: 'Bildirimin gönderilme tarihi'
+              },
+              data: {
+                type: 'object',
+                description: 'Bildirim ile ilişkili ekstra veri'
+              },
+              user_id: {
+                type: 'string',
+                description: 'Bildirimin hedef kullanıcı ID\'si'
+              },
+              device_token: {
+                type: 'string',
+                description: 'Bildirimin gönderileceği cihaz token\'ı'
+              },
+              platform: {
+                type: 'string',
+                enum: ['ios', 'android'],
+                description: 'Bildirimin gönderileceği platform'
+              }
+            }
+          },
+          MobileNotificationType: {
+            type: 'string',
+            enum: [
+              'event_invitation',
+              'event_reminder',
+              'friend_request',
+              'friend_request_accepted',
+              'new_message',
+              'event_update',
+              'event_cancelled',
+              'system_notification'
+            ],
+            description: 'Mobil bildirim türleri'
+          },
+          SendStatus: {
+            type: 'string',
+            enum: [
+              'pending',
+              'sent',
+              'failed',
+              'delivered'
+            ],
+            description: 'Bildirim gönderilme durumu'
           }
         },
       },
