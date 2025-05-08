@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import http from 'http';
-import { supabaseAdmin } from './supabase';
+import supabase , { supabaseAdmin } from './supabase';
 import logger from '../utils/logger';
 
 let io: Server;
@@ -55,6 +55,50 @@ export const initializeSocket = (server: http.Server) => {
             
           logger.info(`Kullanıcı bağlantısı kesildi: ${userId}`);
         });
+        
+        // Kullanıcının okunmamış uyarı mesajlarını gönder - Yeni eklenen kısım
+        const { data: unreadWarnings, error: warningsError } = await supabaseAdmin
+          .from('User_Warnings')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_read', false)
+          .order('sent_at', { ascending: false });
+        
+        if (!warningsError && unreadWarnings && unreadWarnings.length > 0) {
+          // Admin bilgilerini ayrı bir sorguda alıp birleştirelim
+          const adminIds = [...new Set(unreadWarnings.map(warning => warning.admin_id))];
+          
+          if (adminIds.length > 0) {
+            const { data: admins, error: adminsError } = await supabaseAdmin
+              .from('users')
+              .select('id, first_name, last_name')
+              .in('id', adminIds);
+            
+            if (!adminsError && admins) {
+              // Admin bilgilerini uyarı verilerine ekleyelim
+              const warningsWithAdmins = unreadWarnings.map(warning => {
+                const admin = admins.find(a => a.id === warning.admin_id);
+                return {
+                  ...warning,
+                  admin: admin ? {
+                    first_name: admin.first_name,
+                    last_name: admin.last_name
+                  } : null
+                };
+              });
+              
+              socket.emit('unread_warnings', { warnings: warningsWithAdmins });
+              logger.info(`Kullanıcıya ${unreadWarnings.length} adet okunmamış uyarı gönderildi: ${userId}`);
+            } else {
+              // Admin bilgileri alınamazsa, sadece uyarıları gönder
+              socket.emit('unread_warnings', { warnings: unreadWarnings });
+              logger.info(`Kullanıcıya ${unreadWarnings.length} adet okunmamış uyarı gönderildi (admin bilgileri olmadan): ${userId}`);
+            }
+          } else {
+            socket.emit('unread_warnings', { warnings: unreadWarnings });
+            logger.info(`Kullanıcıya ${unreadWarnings.length} adet okunmamış uyarı gönderildi: ${userId}`);
+          }
+        }
       } catch (error) {
         logger.error('Socket kimlik doğrulama hatası:', error);
         socket.emit('error', { message: 'Sunucu hatası' });
@@ -137,6 +181,52 @@ export const initializeSocket = (server: http.Server) => {
         
       } catch (error) {
         logger.error('Mesaj okundu işaretleme hatası:', error);
+        socket.emit('error', { message: 'Sunucu hatası' });
+      }
+    });
+    
+    // Uyarı mesajlarını okundu olarak işaretle - Yeni eklenen kısım
+    socket.on('mark_warning_read', async (data: { warningId: string }) => {
+      try {
+        const { warningId } = data;
+        const userId = getSocketUserId(socket);
+        
+        if (!userId) {
+          socket.emit('error', { message: 'Kimlik doğrulama gerekli' });
+          return;
+        }
+        
+        // Tablo adını sabit olarak belirle
+        const validTable = 'User_Warnings';
+
+        // Güvenlik kontrolü: Uyarının gerçekten bu kullanıcıya ait olduğundan emin olun
+        const { data: warning, error: checkError } = await supabaseAdmin
+          .from(validTable)
+          .select('id')
+          .eq('id', warningId)
+          .eq('user_id', userId)
+          .single();
+        
+        if (checkError || !warning) {
+          socket.emit('error', { message: 'Uyarı mesajı bulunamadı veya bu kullanıcıya ait değil' });
+          return;
+        }
+        
+        // Uyarıyı okundu olarak işaretle - updated_at alanı olmadığı için yalnızca is_read güncelleniyor
+        const { error } = await supabaseAdmin
+          .from(validTable)
+          .update({ is_read: true })
+          .eq('id', warningId);
+          
+        if (error) {
+          socket.emit('error', { message: 'Uyarı işaretlenemedi' });
+          return;
+        }
+        
+        socket.emit('warning_read', { warningId, success: true });
+        
+      } catch (error) {
+        logger.error('Uyarı okundu işaretleme hatası:', error);
         socket.emit('error', { message: 'Sunucu hatası' });
       }
     });

@@ -17,6 +17,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import announcementRoutes from './routes/announcementRoutes';
 import eventRatingRoutes from './routes/eventRatingRoutes';
 import userReportRoutes from './routes/userReportRoutes';
+import warningRoutes from './routes/warningRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
@@ -83,6 +84,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/event-ratings', eventRatingRoutes);
 app.use('/api/user-reports', userReportRoutes);
+app.use('/api/warnings', warningRoutes);
 
 // Mobil API Routes
 import mobileFriendshipRoutes from './routes/friendshipRoutes';
