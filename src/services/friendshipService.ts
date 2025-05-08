@@ -44,6 +44,7 @@ export const sendFriendRequest = async (requesterId: string, receiverId: string)
       .select('*')
       .eq('requester_id', requesterId)
       .eq('receiver_id', receiverId)
+      .or('status.eq.pending,status.eq.rejected,status.eq.deleted')
       .maybeSingle();
       
     if (existingRequestError) {
@@ -52,9 +53,9 @@ export const sendFriendRequest = async (requesterId: string, receiverId: string)
     }
 
     if (existingRequest) {
-      // Eğer istek varsa ve reddedilmişse, durumunu pending'e güncelle
-      if (existingRequest.status === 'rejected') {
-        logger.info(`Reddedilmiş istek bulundu, durumu güncelleniyor: ${JSON.stringify(existingRequest)}`);
+      // Eğer istek varsa ve reddedilmişse veya silinmişse, durumunu pending'e güncelle
+      if (existingRequest.status === 'rejected' || existingRequest.status === 'deleted') {
+        logger.info(`${existingRequest.status} durumundaki istek bulundu, durumu güncelleniyor: ${JSON.stringify(existingRequest)}`);
         
         const { error: updateError } = await supabaseAdmin
           .from('friendship_requests')
@@ -114,8 +115,102 @@ export const sendFriendRequest = async (requesterId: string, receiverId: string)
       throw new Error('Bu kullanıcı size zaten bir arkadaşlık isteği göndermiş. İsteği kabul edebilirsiniz.');
     }
 
+    // Silinmiş bir arkadaşlığımız var mı kontrol edelim
+    const { data: deletedRequest, error: deletedRequestError } = await supabaseAdmin
+      .from('friendship_requests')
+      .select('*')
+      .or(`and(requester_id.eq.${requesterId},receiver_id.eq.${receiverId}),and(requester_id.eq.${receiverId},receiver_id.eq.${requesterId})`)
+      .eq('status', 'deleted')
+      .maybeSingle();
+
+    if (deletedRequestError) {
+      logger.error(`Silinmiş istek kontrolü hatası: ${JSON.stringify(deletedRequestError)}`);
+      // Bu hatayı fırlatmıyoruz, ana akışı etkilemesin
+    }
+
+    // Silinmiş istekle ilgili bilgi logla (varsa)
+    if (deletedRequest) {
+      logger.info(`Daha önce silinmiş bir arkadaşlık isteği bulundu: ${JSON.stringify(deletedRequest)}`);
+      
+      // Bu durumda, silinmiş isteğin durumunu güncelleyerek tekrar kullanabiliriz
+      const { error: updateError } = await supabaseAdmin
+        .from('friendship_requests')
+        .update({ 
+          status: 'pending', 
+          updated_at: new Date(),
+          requester_id: requesterId,
+          receiver_id: receiverId
+        })
+        .eq('id', deletedRequest.id);
+        
+      if (updateError) {
+        logger.error(`Silinmiş istek güncelleme hatası: ${JSON.stringify(updateError)}`);
+        // Bu hatayı fırlatmıyoruz, yeni bir istek oluşturmaya devam edeceğiz
+      } else {
+        // Başarıyla güncellendiyse, güncellenmiş isteği döndür
+        const { data: updatedRequest, error: getError } = await supabaseAdmin
+          .from('friendship_requests')
+          .select('*')
+          .eq('id', deletedRequest.id)
+          .single();
+          
+        if (!getError && updatedRequest) {
+          logger.info(`Silinmiş istek başarıyla güncellendi ve tekrar aktifleştirildi: ${JSON.stringify(updatedRequest)}`);
+          return updatedRequest;
+        }
+      }
+    }
+
     // Yeni istek oluştur
     logger.info('Yeni arkadaşlık isteği oluşturma başlıyor...');
+    
+    // DÜZELTME: Herhangi bir durumda kayıt var mı diye tüm durumları kapsayan bir sorgu yapalım
+    const { data: anyExistingRequest, error: anyExistingError } = await supabaseAdmin
+      .from('friendship_requests')
+      .select('*')
+      .eq('requester_id', requesterId)
+      .eq('receiver_id', receiverId)
+      .maybeSingle();
+    
+    if (anyExistingError) {
+      logger.error(`Genel istek kontrolü hatası: ${JSON.stringify(anyExistingError)}`);
+      // Bu hatayı fırlatmıyoruz, devam ediyoruz
+    }
+    
+    // Eğer herhangi bir durumda kayıt varsa, onu güncelle
+    if (anyExistingRequest) {
+      logger.info(`Daha önceden herhangi bir durumda istek kaydı bulundu: ${JSON.stringify(anyExistingRequest)}`);
+      
+      const { error: updateError } = await supabaseAdmin
+        .from('friendship_requests')
+        .update({ 
+          status: 'pending',
+          updated_at: new Date() 
+        })
+        .eq('id', anyExistingRequest.id);
+        
+      if (updateError) {
+        logger.error(`Mevcut isteği güncelleme hatası: ${JSON.stringify(updateError)}`);
+        throw updateError;
+      }
+      
+      // Güncellenmiş isteği getir
+      const { data: updatedRequest, error: getError } = await supabaseAdmin
+        .from('friendship_requests')
+        .select('*')
+        .eq('id', anyExistingRequest.id)
+        .single();
+        
+      if (getError) {
+        logger.error(`Güncellenmiş genel isteği alma hatası: ${JSON.stringify(getError)}`);
+        throw getError;
+      }
+      
+      logger.info(`İstek durumu başarıyla güncellendi: ${JSON.stringify(updatedRequest)}`);
+      return updatedRequest;
+    }
+    
+    // Eğer daha önce hiç istek yoksa yeni oluştur
     const requestData = {
       requester_id: requesterId,
       receiver_id: receiverId,
@@ -259,10 +354,6 @@ export const respondToFriendRequest = async (
 
     if (friendshipError) throw friendshipError;
 
-    // Her iki kullanıcının arkadaş sayaçlarını artır
-    await supabaseAdmin.rpc('increment_friend_count', { user_id: request.requester_id });
-    await supabaseAdmin.rpc('increment_friend_count', { user_id: request.receiver_id });
-    
     // Bu iki kullanıcı arasındaki diğer bekleyen istekleri reddet
     logger.info(`Kabul edilen istek nedeniyle diğer bekleyen istekleri reddediyorum. Kullanıcılar: ${request.requester_id} ve ${request.receiver_id}`);
     
@@ -289,13 +380,16 @@ export const respondToFriendRequest = async (
  * Kullanıcının arkadaşlarını listeler
  */
 export const getFriends = async (userId: string): Promise<FriendProfile[]> => {
-  // Kullanıcının arkadaşlarını bul (her iki yönde)
+  // Kullanıcının aktif arkadaşlarını bul (her iki yönde)
   const { data: friendships, error } = await supabaseAdmin
     .from('friendships')
     .select('*')
     .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
 
-  if (error) throw error;
+  if (error) {
+    logger.error(`Arkadaşlık bulma hatası: ${JSON.stringify(error)}`);
+    throw error;
+  }
 
   if (!friendships || friendships.length === 0) {
     return [];
@@ -306,13 +400,18 @@ export const getFriends = async (userId: string): Promise<FriendProfile[]> => {
     friendship.user_id_1 === userId ? friendship.user_id_2 : friendship.user_id_1
   );
 
+  logger.info(`${userId} kullanıcısının ${friendIds.length} aktif arkadaşlığı bulundu.`);
+
   // Arkadaş profillerini getir
   const { data: friends, error: friendsError } = await supabaseAdmin
     .from('users')
     .select('id, first_name, last_name, email, profile_picture, is_online, last_seen_at')
     .in('id', friendIds);
 
-  if (friendsError) throw friendsError;
+  if (friendsError) {
+    logger.error(`Arkadaş profilleri getirme hatası: ${JSON.stringify(friendsError)}`);
+    throw friendsError;
+  }
 
   return friends || [];
 };
@@ -332,6 +431,14 @@ export const removeFriendship = async (userId: string, friendId: string) => {
     throw new Error('Bu kullanıcı ile arkadaşlık bulunamadı.');
   }
 
+  // İlgili arkadaşlık isteğini bul
+  const { data: friendshipRequest, error: requestError } = await supabaseAdmin
+    .from('friendship_requests')
+    .select('*')
+    .or(`and(requester_id.eq.${userId},receiver_id.eq.${friendId}),and(requester_id.eq.${friendId},receiver_id.eq.${userId})`)
+    .eq('status', 'accepted')
+    .maybeSingle();
+
   // Arkadaşlığı sil
   const { error: deleteError } = await supabaseAdmin
     .from('friendships')
@@ -340,9 +447,44 @@ export const removeFriendship = async (userId: string, friendId: string) => {
 
   if (deleteError) throw deleteError;
 
-  // Her iki kullanıcının arkadaş sayaçlarını azalt
-  await supabaseAdmin.rpc('decrement_friend_count', { user_id: userId });
-  await supabaseAdmin.rpc('decrement_friend_count', { user_id: friendId });
+  // İlgili arkadaşlık isteği varsa, durumunu 'deleted' olarak güncelle
+  if (friendshipRequest) {
+    const { error: updateError } = await supabaseAdmin
+      .from('friendship_requests')
+      .update({ 
+        status: 'deleted', 
+        updated_at: new Date() 
+      })
+      .eq('id', friendshipRequest.id);
+
+    if (updateError) {
+      logger.error(`Arkadaşlık isteği durumu güncelleme hatası: ${JSON.stringify(updateError)}`);
+      // Asıl işlem (arkadaşlık silme) başarılı olduğu için hatayı fırlatmıyoruz, sadece log kaydı yapıyoruz
+    }
+  } else {
+    // Eğer aktif bir friendship_request bulunamadıysa, yeni bir kayıt oluştur
+    // Bu, geçmişte friendship_requests tablosunun olmadığı zamanlardan kalan arkadaşlıklar için
+    const requestData = {
+      requester_id: friendship.user_id_1,
+      receiver_id: friendship.user_id_2,
+      status: 'deleted',
+      created_at: friendship.created_at || new Date(),
+      updated_at: new Date()
+    };
+
+    const { error: insertError } = await supabaseAdmin
+      .from('friendship_requests')
+      .insert(requestData);
+
+    if (insertError) {
+      logger.error(`Silinen arkadaşlık için istek kaydı oluşturma hatası: ${JSON.stringify(insertError)}`);
+      // Asıl işlem (arkadaşlık silme) başarılı olduğu için hatayı fırlatmıyoruz, sadece log kaydı yapıyoruz
+    }
+  }
+
+  // Friend count RPC çağrıları kaldırıldı (friend_count kolonu artık kullanılmıyor)
+  // await supabaseAdmin.rpc('decrement_friend_count', { user_id: userId });
+  // await supabaseAdmin.rpc('decrement_friend_count', { user_id: friendId });
 
   return { success: true };
 };

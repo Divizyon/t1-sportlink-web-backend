@@ -1309,6 +1309,25 @@ export const getNearbyEvents = async (req: Request, res: Response) => {
   try {
     const { latitude, longitude, distance = 1 } = req.query;
     
+    // Üretim ortamı için test modu kapalı
+    const SWAGGER_TEST_MODE = false; // Üretim ortamında false olmalıdır
+    
+    // Kullanıcı oturum kontrolü
+    const userId = req.userProfile?.id || req.user?.id;
+    const hasToken = !!req.query.token; // URL'den token var mı?
+    
+    // Kimlik doğrulama kontrolü
+    const isAuthorized = SWAGGER_TEST_MODE || !!userId || hasToken;
+    
+    // Kimlik doğrulama kontrolü (üretim ortamında)
+    if (!isAuthorized) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+    
+    // Koordinat kontrolü
     if (!latitude || !longitude) {
       return res.status(400).json({
         status: 'error',
@@ -1327,10 +1346,6 @@ export const getNearbyEvents = async (req: Request, res: Response) => {
       });
     }
     
-    // Kullanıcı bilgisi opsiyonel olarak alınacak (token varsa)
-    const userId = req.user?.id;
-    logger.info(`Yakındaki etkinlikler isteniyor: lat=${userLat}, lng=${userLng}, distance=${searchRadius}km, userId=${userId || 'misafir'}`);
-    
     const events = await eventService.getNearbyEvents(userLat, userLng, searchRadius);
     
     res.status(200).json({
@@ -1340,6 +1355,7 @@ export const getNearbyEvents = async (req: Request, res: Response) => {
     });
     
   } catch (error) {
+    console.error('Nearby API hatası:', error instanceof Error ? error.message : 'Bilinmeyen hata');
     handleError(error as Error, res);
   }
 }; 

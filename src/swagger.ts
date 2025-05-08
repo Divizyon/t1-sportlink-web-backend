@@ -18,9 +18,11 @@ const options: swaggerJsdoc.Options = {
     components: {
       securitySchemes: {
         bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'JWT token bilginizi girin. "Bearer" öneki otomatik olarak eklenecektir.',
+          bearerFormat: 'JWT'
         },
       },
     },

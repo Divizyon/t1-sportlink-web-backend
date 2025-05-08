@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input, button {
+      padding: 8px;
+      width: 100%;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Auth Token Test</h1>
+  
+  <div class="form-group">
+    <label for="token">Bearer Token:</label>
+    <input type="text" id="token" placeholder="Bearer token değeri girin">
+  </div>
+  
+  <div class="form-group">
+    <label for="latitude">Latitude:</label>
+    <input type="text" id="latitude" value="40.7128">
+  </div>
+  
+  <div class="form-group">
+    <label for="longitude">Longitude:</label>
+    <input type="text" id="longitude" value="-74.0060">
+  </div>
+  
+  <div class="form-group">
+    <label for="distance">Distance (km):</label>
+    <input type="text" id="distance" value="5">
+  </div>
+  
+  <button onclick="testNearbyEndpoint()">Test Nearby Endpoint</button>
+  
+  <div id="result"></div>
+  
+  <script>
+    async function testNearbyEndpoint() {
+      const token = document.getElementById('token').value;
+      const latitude = document.getElementById('latitude').value;
+      const longitude = document.getElementById('longitude').value;
+      const distance = document.getElementById('distance').value;
+      const resultDiv = document.getElementById('result');
+      
+      if (!token) {
+        resultDiv.textContent = 'Lütfen geçerli bir token girin!';
+        return;
+      }
+      
+      try {
+        resultDiv.textContent = 'İstek gönderiliyor...';
+        
+        const response = await fetch(`http://localhost:3000/api/events/nearby?latitude=${latitude}&longitude=${longitude}&distance=${distance}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultDiv.textContent = `Hata: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html> 

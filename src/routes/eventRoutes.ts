@@ -17,7 +17,10 @@ const router = express.Router();
  * /api/events/nearby:
  *   get:
  *     summary: Kullanıcının yakınındaki etkinlikleri getirir
+ *     description: Bu işlem kimlik doğrulama gerektirir
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: latitude
@@ -40,8 +43,14 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Yakındaki etkinlikler başarıyla getirildi
+ *       400:
+ *         description: Geçersiz koordinat veya mesafe değeri
+ *       401:
+ *         description: Oturum açık değil - token bulunamadı
+ *       500:
+ *         description: Sunucu hatası
  */
-router.get('/nearby', optionalAuth, EventController.getNearbyEvents);
+router.get('/nearby', protect, EventController.getNearbyEvents);
 
 /**
  * @swagger

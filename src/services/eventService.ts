@@ -4,6 +4,7 @@ import { parseISO, addHours, isBefore, isAfter, startOfDay, endOfDay, format } f
 import { toZonedTime } from 'date-fns-tz';
 import logger from '../utils/logger';
 import { BadRequestError, NotFoundError } from '../errors/customErrors';
+import { getSupabaseForToken } from '../config/supabaseClient';
 
 const DEFAULT_TIMEZONE = 'Europe/Istanbul';
 
@@ -1577,8 +1578,9 @@ export const getNearbyEvents = async (
   try {
     logger.info(`Yakındaki etkinlikleri getirme: lat=${latitude}, lng=${longitude}, distance=${distance}km`);
     
-    // İlişkilerin tam adlarını kullanıyoruz ve Event_Participants'i kaldırıyoruz
-    const { data, error } = await supabase.from('Events')
+    // supabase client kullanarak sorgu yap
+    const { data, error } = await supabaseAdmin
+      .from('Events')
       .select(`
         *,
         users!Events_creator_id_fkey(id, first_name, last_name, profile_picture), 

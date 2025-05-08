@@ -95,10 +95,6 @@ router.get('/', getProfile);
  *               last_name:
  *                 type: string
  *                 description: Kullanıcının soyadı
- *               email:
- *                 type: string
- *                 format: email
- *                 description: Kullanıcının e-posta adresi (dikkatli kullanın, doğrulama gerektirebilir)
  *               phone:
  *                 type: string
  *                 description: Kullanıcının telefon numarası
@@ -160,7 +156,7 @@ router.get('/', getProfile);
  *                       type: integer
  *                       description: Kullanıcının katıldığı toplam etkinlik sayısı
  *       400:
- *         description: Hatalı istek (örn. gerekli alanlar eksik)
+ *         description: Hatalı istek (örn. gerekli alanlar eksik veya email değiştirme girişimi)
  *       401:
  *         description: Yetkisiz erişim
  */

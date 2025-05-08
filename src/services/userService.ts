@@ -704,7 +704,6 @@ export const getUserProfileById = async (userId: string): Promise<UserProfileDat
 interface UpdateUserProfileDTO {
   first_name?: string;
   last_name?: string;
-  email?: string; // Email update needs careful consideration due to auth link
   phone?: string;
   bio?: string;
   gender?: string;
