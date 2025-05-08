@@ -7,7 +7,9 @@ import {
   deleteUserController,
   sendWarningToUserController,
   toggleUserWatch,
-  getUsersByRoleController
+  getUsersByRoleController,
+  freezeAccountController,
+  deleteAccountController
 } from '../controllers/UserController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -626,6 +628,114 @@ router.post('/:userId/warning', protect, restrictTo('ADMIN'), sendWarningToUserC
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.put('/:userId/watch', restrictTo('ADMIN'), toggleUserWatch);
+
+/**
+ * @swagger
+ * /api/users/account/freeze:
+ *   post:
+ *     summary: Hesabı dondur
+ *     description: Kullanıcı hesabını dondurur. Hesap, 30 gün içinde giriş yapılmazsa inactive durumuna geçer. 30 gün içinde giriş yapıldığında aynı bilgilerle devam edilebilir.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Hesap dondurma işlemi başarılı
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Hesabınız donduruldu. 30 gün içinde giriş yapmazsanız hesabınız devre dışı kalacaktır.
+ *       401:
+ *         description: Yetkilendirme hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Bu işlemi gerçekleştirmek için giriş yapmalısınız
+ *       500:
+ *         description: Sunucu hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Hesap dondurma işlemi sırasında bir hata oluştu
+ *                 error:
+ *                   type: string
+ */
+router.post('/account/freeze', protect, freezeAccountController);
+
+/**
+ * @swagger
+ * /api/users/account/delete:
+ *   post:
+ *     summary: Hesabı sil
+ *     description: Kullanıcı hesabını siler (inactive durumuna alır). KVKK gereği kullanıcı verileri tamamen silinmez, sadece hesap devre dışı bırakılır.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Hesap silme işlemi başarılı
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Hesabınız başarıyla devre dışı bırakıldı. KVKK gereği verileriniz sistemde saklanacaktır.
+ *       401:
+ *         description: Yetkilendirme hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Bu işlemi gerçekleştirmek için giriş yapmalısınız
+ *       500:
+ *         description: Sunucu hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Hesap silme işlemi sırasında bir hata oluştu
+ *                 error:
+ *                   type: string
+ */
+router.post('/account/delete', protect, deleteAccountController);
 
 /**
  * @swagger
