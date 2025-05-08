@@ -1058,4 +1058,57 @@ router.get('/my/participated', protect, EventController.getUserParticipatedEvent
  */
 router.get('/my/created', protect, EventController.getUserCreatedEvents);
 
+/**
+ * @swagger
+ * /api/events/{id}/invite:
+ *   post:
+ *     summary: Kullanıcıyı etkinliğe davet et
+ *     description: Bir kullanıcıyı belirli bir etkinliğe davet eder. Davet edilen kullanıcıya bildirim gönderilir.
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Etkinlik ID'si
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - inviteeId
+ *             properties:
+ *               inviteeId:
+ *                 type: string
+ *                 description: Davet edilecek kullanıcının ID'si
+ *     responses:
+ *       200:
+ *         description: Kullanıcı etkinliğe başarıyla davet edildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Kullanıcı etkinliğe başarıyla davet edildi
+ *       400:
+ *         description: Davet gönderme hatası (geçersiz kullanıcı, etkinlik dolu, vb.)
+ *       401:
+ *         description: Yetkilendirme hatası
+ *       404:
+ *         description: Etkinlik bulunamadı
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.post('/:id/invite', protect, EventController.inviteUserToEvent);
+
 export default router; 

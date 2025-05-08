@@ -1,6 +1,9 @@
 import supabase, { supabaseAdmin } from '../config/supabase';
 import { FriendshipRequest, Friendship, FriendProfile } from '../models/Friendship';
 import logger from '../utils/logger';
+import { PushNotificationService } from '../services/PushNotificationService';
+import { MobileNotificationService } from '../services/MobileNotificationService';
+import { MobileNotificationType } from '../models/MobileNotification';
 
 /**
  * Arkadaşlık isteği gönderir
@@ -236,6 +239,68 @@ export const sendFriendRequest = async (requesterId: string, receiverId: string)
     }
     
     logger.info(`Arkadaşlık isteği başarıyla oluşturuldu: ${JSON.stringify(data)}`);
+    
+    // Alıcıya bildirim gönder
+    try {
+      const mobileNotificationService = new MobileNotificationService();
+      
+      // receiverId doğrulama ve loglama
+      logger.info(`Bildirim için alıcı kullanıcı ID kontrolü: ${receiverId}`);
+      
+      // receiverId'nin gerçek bir kullanıcı olup olmadığını kontrol et
+      const { data: receiverUser, error: receiverError } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('id', receiverId)
+        .single();
+      
+      if (receiverError || !receiverUser) {
+        logger.error(`Alıcı kullanıcı bulunamadı: ${receiverId}. Hata: ${receiverError?.message || 'Kullanıcı mevcut değil'}`);
+        return data; // Kullanıcı bulunamadıysa, bildirimi atla ama isteği tamamla
+      }
+      
+      // İstek gönderen kullanıcı bilgilerini al
+      const { data: requesterUser } = await supabaseAdmin
+        .from('users')
+        .select('id, first_name, last_name, profile_picture')
+        .eq('id', requesterId)
+        .single();
+      
+      if (requesterUser) {
+        // Her kullanıcıya doğrudan bir bildirim gönderelim (device_token olmadan)
+        const title = 'Yeni Arkadaşlık İsteği';
+        const body = `${requesterUser.first_name} ${requesterUser.last_name} size arkadaşlık isteği gönderdi`;
+        
+        logger.info(`Arkadaşlık isteği bildirimi oluşturuluyor: Gönderen=${requesterId}, Alıcı=${receiverId}`);
+        
+        // Bildirim oluştur (device_token ve platform belirtmeden)
+        await mobileNotificationService.createNotification({
+          user_id: receiverId,
+          title,
+          body,
+          data: {
+            type: 'FRIEND_REQUEST',
+            requestId: data.id,
+            requesterId: requesterId,
+            requesterFirstName: requesterUser.first_name,
+            requesterLastName: requesterUser.last_name,
+            requesterProfilePicture: requesterUser.profile_picture,
+            deepLink: `sportlink://friendships/requests/${data.id}`
+          },
+          notification_type: MobileNotificationType.FRIEND_REQUEST,
+          device_token: null, // Uygulama içi bildirim olduğu için null
+          platform: null // Uygulama içi bildirim olduğu için null
+        });
+        
+        logger.info(`Arkadaşlık isteği bildirimi başarıyla oluşturuldu`);
+      } else {
+        logger.warn(`Bildirim gönderilemedi: İstek gönderen kullanıcı bilgileri bulunamadı`);
+      }
+    } catch (error) {
+      // Bildirim gönderme hatası, ana işlemi etkilemesin
+      logger.error(`Arkadaşlık isteği bildirimi gönderme hatası: ${error}`);
+    }
+    
     return data;
   } catch (error) {
     logger.error(`Arkadaşlık isteği gönderme genel hatası: ${error}`);
@@ -313,7 +378,7 @@ export const getOutgoingFriendRequests = async (userId: string): Promise<any[]> 
 };
 
 /**
- * Arkadaşlık isteğini yanıtlar (kabul/red)
+ * Arkadaşlık isteğini yanıtlar
  */
 export const respondToFriendRequest = async (
   requestId: number, 
@@ -343,33 +408,86 @@ export const respondToFriendRequest = async (
 
   if (updateError) throw updateError;
 
-  // Eğer kabul edildiyse, arkadaşlık oluştur
+  // Eğer kabul edildiyse, arkadaşlık kaydı oluştur
   if (status === 'accepted') {
-    const { error: friendshipError } = await supabaseAdmin
+    logger.info('Arkadaşlık isteği kabul edildi, arkadaşlık kaydı oluşturuluyor...');
+    
+    // Arkadaşlık kaydı oluştur
+    const { data: friendship, error: friendshipError } = await supabaseAdmin
       .from('friendships')
       .insert({
         user_id_1: request.requester_id,
         user_id_2: request.receiver_id
-      });
-
-    if (friendshipError) throw friendshipError;
-
-    // Bu iki kullanıcı arasındaki diğer bekleyen istekleri reddet
-    logger.info(`Kabul edilen istek nedeniyle diğer bekleyen istekleri reddediyorum. Kullanıcılar: ${request.requester_id} ve ${request.receiver_id}`);
-    
-    const { error: rejectOtherRequestsError } = await supabaseAdmin
-      .from('friendship_requests')
-      .update({ 
-        status: 'rejected', 
-        updated_at: new Date() 
       })
-      .not('id', 'eq', requestId)
-      .eq('status', 'pending')
-      .or(`and(requester_id.eq.${request.requester_id},receiver_id.eq.${request.receiver_id}),and(requester_id.eq.${request.receiver_id},receiver_id.eq.${request.requester_id})`)
+      .select()
+      .single();
     
-    if (rejectOtherRequestsError) {
-      logger.error(`Diğer istekleri reddetme hatası: ${JSON.stringify(rejectOtherRequestsError)}`);
-      // Ana işlemi etkilememesi için hatayı fırlatmıyoruz, sadece logluyoruz
+    if (friendshipError) {
+      logger.error(`Arkadaşlık kaydı oluşturma hatası: ${JSON.stringify(friendshipError)}`);
+      throw friendshipError;
+    }
+    
+    logger.info(`Arkadaşlık kaydı başarıyla oluşturuldu: ${JSON.stringify(friendship)}`);
+
+    // İstek gönderene bildirim gönder (Kabul edildi bildirimi)
+    try {
+      const mobileNotificationService = new MobileNotificationService();
+      
+      // Alıcı kullanıcı ID doğrulama (bu sefer gönderen kullanıcı)
+      logger.info(`Kabul bildirimi için alıcı kullanıcı ID kontrolü: ${request.requester_id}`);
+      
+      // alıcı ID'nin gerçek bir kullanıcı olup olmadığını kontrol et
+      const { data: requesterCheck, error: requesterCheckError } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('id', request.requester_id)
+        .single();
+      
+      if (requesterCheckError || !requesterCheck) {
+        logger.error(`İstek gönderen kullanıcı bulunamadı: ${request.requester_id}. Hata: ${requesterCheckError?.message || 'Kullanıcı mevcut değil'}`);
+        return { success: true, status }; // Kullanıcı bulunamadıysa, bildirimi atla ama işlemi tamamla
+      }
+      
+      // Kabul eden kullanıcı bilgilerini al
+      const { data: receiverUser } = await supabaseAdmin
+        .from('users')
+        .select('id, first_name, last_name, profile_picture')
+        .eq('id', userId)
+        .single();
+      
+      if (receiverUser) {
+        // Bildirim oluştur (device_token ve platform belirtmeden)
+        const title = 'Arkadaşlık İsteği Kabul Edildi';
+        const body = `${receiverUser.first_name} ${receiverUser.last_name} arkadaşlık isteğinizi kabul etti`;
+        
+        logger.info(`Arkadaşlık isteği kabul bildirimi oluşturuluyor: Gönderen=${userId}, Alıcı=${request.requester_id}`);
+        
+        // Doğrudan bildirim oluştur (device_token ve platform olmadan)
+        await mobileNotificationService.createNotification({
+          user_id: request.requester_id,
+          title,
+          body,
+          data: {
+            type: 'FRIEND_REQUEST_ACCEPTED',
+            friendshipId: friendship.id,
+            userId: receiverUser.id,
+            firstName: receiverUser.first_name,
+            lastName: receiverUser.last_name,
+            profilePicture: receiverUser.profile_picture,
+            deepLink: `sportlink://friendships/${receiverUser.id}`
+          },
+          notification_type: MobileNotificationType.FRIEND_REQUEST_ACCEPTED,
+          device_token: null, // Uygulama içi bildirim olduğu için null 
+          platform: null // Uygulama içi bildirim olduğu için null
+        });
+        
+        logger.info(`Arkadaşlık isteği kabul bildirimi başarıyla oluşturuldu`);
+      } else {
+        logger.warn(`Bildirim gönderilemedi: Kabul eden kullanıcı bilgileri bulunamadı`);
+      }
+    } catch (error) {
+      // Bildirim gönderme hatası, ana işlemi etkilemesin
+      logger.error(`Arkadaşlık kabul bildirimi gönderme hatası: ${error}`);
     }
   }
 

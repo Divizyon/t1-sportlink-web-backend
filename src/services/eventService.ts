@@ -308,6 +308,82 @@ export const updateEventStatus = async (
       throw new EventStatusError('Etkinlik durumu başka bir kullanıcı tarafından değiştirilmiş olabilir. Lütfen sayfayı yenileyip tekrar deneyin.');
     }
 
+    // Etkinliğin mevcut katılımcılarını bul
+    try {
+      const { data: participants } = await supabaseAdmin
+        .from('Event_Participants')
+        .select('user_id')
+        .eq('event_id', eventId);
+
+      if (participants && participants.length > 0 && data.title) {
+        // Bildirim servisleri için gerekli modülleri yükle
+        const { MobileNotificationService } = require('../services/MobileNotificationService');
+        const { MobileNotificationType } = require('../models/MobileNotification');
+        
+        const mobileNotificationService = new MobileNotificationService();
+        
+        // Bildirim başlığı ve içeriğini hazırla
+        let title, body, notificationType;
+        
+        switch (status) {
+          case EventStatus.ACTIVE:
+            title = 'Etkinlik Durumu: Aktif';
+            body = `"${data.title}" etkinliği aktif duruma geçti.`;
+            notificationType = MobileNotificationType.EVENT_STATUS_CHANGE;
+            break;
+          case EventStatus.CANCELLED:
+            title = 'Etkinlik İptal Edildi';
+            body = `"${data.title}" etkinliği iptal edildi.`;
+            notificationType = MobileNotificationType.EVENT_CANCELLED;
+            break;
+          case EventStatus.COMPLETED:
+            title = 'Etkinlik Tamamlandı';
+            body = `"${data.title}" etkinliği tamamlandı.`;
+            notificationType = MobileNotificationType.EVENT_COMPLETED;
+            break;
+          case EventStatus.REJECTED:
+            title = 'Etkinlik Reddedildi';
+            body = `"${data.title}" etkinliği yönetici tarafından reddedildi.`;
+            notificationType = MobileNotificationType.EVENT_STATUS_CHANGE;
+            break;
+          default:
+            title = 'Etkinlik Durumu Değişti';
+            body = `"${data.title}" etkinliğinin durumu değişti.`;
+            notificationType = MobileNotificationType.EVENT_STATUS_CHANGE;
+        }
+        
+        logger.info(`Etkinlik durum değişikliği bildirimi gönderiliyor: ${status} - ${participants.length} katılımcıya`);
+        
+        // Tüm katılımcılara bildirim gönder
+        for (const participant of participants) {
+          // Etkinlik sahibine zaten bildirim gönderiliyor, tekrar göndermeye gerek yok
+          if (participant.user_id === event.creator_id) continue;
+          
+          await mobileNotificationService.createNotification({
+            user_id: participant.user_id,
+            title,
+            body,
+            data: {
+              type: 'EVENT_STATUS_CHANGED',
+              eventId: eventId,
+              eventTitle: data.title,
+              previousStatus: event.status,
+              newStatus: status,
+              deepLink: `sportlink://events/${eventId}`
+            },
+            notification_type: notificationType,
+            device_token: null,
+            platform: null
+          });
+        }
+        
+        logger.info(`Etkinlik durum değişikliği bildirimleri başarıyla gönderildi: eventId=${eventId}`);
+      }
+    } catch (notificationError) {
+      // Bildirim gönderme hatası ana işlemi etkilemesin
+      logger.error('Etkinlik durum değişikliği bildirimi gönderme hatası:', notificationError);
+    }
+
     logger.info(`Etkinlik durumu başarıyla güncellendi: ${eventId} -> ${status}`);
     return formatEvent(data);
   } catch (error) {
@@ -750,6 +826,67 @@ export const updateEvent = async (
       throw new EventStatusError('Etkinlik başka bir kullanıcı tarafından değiştirilmiş olabilir. Lütfen sayfayı yenileyip tekrar deneyin.');
     }
 
+    // Etkinlik güncellendiğinde katılımcılara bildirim gönder
+    try {
+      // Etkinliğin katılımcılarını bul
+      const { data: participants } = await supabaseAdmin
+        .from('Event_Participants')
+        .select('user_id')
+        .eq('event_id', eventId);
+
+      if (participants && participants.length > 0) {
+        const { MobileNotificationService } = require('../services/MobileNotificationService');
+        const { MobileNotificationType } = require('../models/MobileNotification');
+        
+        const mobileNotificationService = new MobileNotificationService();
+        
+        // Hangi alanların güncellendiğini bul
+        const updatedFields = Object.keys(updateData).filter(key => key !== 'updated_at');
+        
+        // Bildirim metni oluştur
+        let title = 'Etkinlik Güncellendi';
+        let body = `"${data.title}" etkinliğinde güncellemeler yapıldı`;
+        
+        // Tarih veya saat değişikliği varsa bunu belirt
+        if (updatedFields.includes('event_date') || updatedFields.includes('start_time') || updatedFields.includes('end_time')) {
+          body = `"${data.title}" etkinliğinin tarih/saat bilgileri güncellendi`;
+        } 
+        // Konum değişikliği varsa bunu belirt
+        else if (updatedFields.includes('location_name') || updatedFields.includes('location_latitude') || updatedFields.includes('location_longitude')) {
+          body = `"${data.title}" etkinliğinin konum bilgileri güncellendi`;
+        }
+        
+        logger.info(`Etkinlik güncelleme bildirimi gönderiliyor: ${participants.length} katılımcıya`);
+        
+        // Tüm katılımcılara bildirim gönder (etkinlik sahibi dahil değil)
+        for (const participant of participants) {
+          // Güncelleyen kişi kendiyse ona bildirim gönderme
+          if (participant.user_id === userId) continue;
+          
+          await mobileNotificationService.createNotification({
+            user_id: participant.user_id,
+            title,
+            body,
+            data: {
+              type: 'EVENT_UPDATED',
+              eventId: eventId,
+              eventTitle: data.title,
+              updatedFields: updatedFields,
+              deepLink: `sportlink://events/${eventId}`
+            },
+            notification_type: MobileNotificationType.EVENT_UPDATE,
+            device_token: null,
+            platform: null
+          });
+        }
+        
+        logger.info(`Etkinlik güncelleme bildirimleri başarıyla gönderildi: eventId=${eventId}`);
+      }
+    } catch (notificationError) {
+      // Bildirim gönderme hatası ana işlemi etkilemesin
+      logger.error('Etkinlik güncelleme bildirimi gönderme hatası:', notificationError);
+    }
+
     logger.info(`Etkinlik başarıyla güncellendi: ${eventId}`);
     return formatEvent(data);
   } catch (error) {
@@ -898,7 +1035,8 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
         status,
         max_participants,
         participants:Event_Participants (count),
-        creator_id
+        creator_id,
+        title
       `)
       .eq('id', eventId)
       .single();
@@ -958,6 +1096,51 @@ export const joinEvent = async (eventId: string, userId: string, role: string = 
     if (participantError) {
       logger.error('Etkinliğe katılım eklenirken hata:', participantError);
       throw new Error('Etkinliğe katılım sağlanırken bir hata oluştu');
+    }
+
+    // Katılan kullanıcı bilgilerini al
+    try {
+      const { data: userInfo } = await supabaseAdmin
+        .from('users')
+        .select('id, first_name, last_name, profile_picture')
+        .eq('id', userId)
+        .single();
+
+      // Etkinlik sahibine bildirim gönder
+      if (userInfo && event.creator_id) {
+        const { MobileNotificationService } = require('../services/MobileNotificationService');
+        const { MobileNotificationType } = require('../models/MobileNotification');
+        
+        const mobileNotificationService = new MobileNotificationService();
+        
+        logger.info(`Etkinlik katılım bildirimi gönderiliyor: eventId=${eventId}, creator=${event.creator_id}, participant=${userId}`);
+        
+        const title = 'Etkinliğinize Yeni Katılım';
+        const body = `${userInfo.first_name} ${userInfo.last_name} "${event.title}" etkinliğinize katıldı`;
+        
+        await mobileNotificationService.createNotification({
+          user_id: event.creator_id,
+          title,
+          body,
+          data: {
+            type: 'EVENT_PARTICIPANT_JOINED',
+            eventId: eventId,
+            eventTitle: event.title,
+            participantId: userId,
+            participantName: `${userInfo.first_name} ${userInfo.last_name}`,
+            participantProfilePicture: userInfo.profile_picture,
+            deepLink: `sportlink://events/${eventId}`
+          },
+          notification_type: MobileNotificationType.EVENT_JOIN,
+          device_token: null,
+          platform: null
+        });
+        
+        logger.info(`Etkinlik katılım bildirimi başarıyla gönderildi: eventId=${eventId}`);
+      }
+    } catch (error) {
+      // Bildirim gönderme hatası ana işlemi etkilemesin
+      logger.error('Etkinlik katılım bildirimi gönderme hatası:', error);
     }
 
     logger.info(`Etkinliğe katılım başarılı: eventId=${eventId}, userId=${userId}, role=${role}`);
@@ -1523,7 +1706,7 @@ export const leaveEvent = async (eventId: string, userId: string) => {
     // Önce etkinliğin varolduğunu kontrol et
     const { data: event, error: eventError } = await supabaseAdmin
       .from('Events')
-      .select('id, status')
+      .select('id, status, creator_id, title')
       .eq('id', eventId)
       .single();
       
@@ -1560,6 +1743,53 @@ export const leaveEvent = async (eventId: string, userId: string) => {
     if (leaveError) {
       logger.error('Etkinlikten ayrılırken hata:', leaveError);
       throw new Error('Etkinlikten ayrılırken bir hata oluştu');
+    }
+    
+    // Ayrılan kullanıcı bilgilerini al ve etkinlik sahibine bildirim gönder
+    try {
+      // Kullanıcının kendi etkinliği değilse bildirim gönder
+      if (event.creator_id && event.creator_id !== userId) {
+        const { data: userInfo } = await supabaseAdmin
+          .from('users')
+          .select('id, first_name, last_name, profile_picture')
+          .eq('id', userId)
+          .single();
+          
+        if (userInfo) {
+          const { MobileNotificationService } = require('../services/MobileNotificationService');
+          const { MobileNotificationType } = require('../models/MobileNotification');
+          
+          const mobileNotificationService = new MobileNotificationService();
+          
+          logger.info(`Etkinlikten ayrılma bildirimi gönderiliyor: eventId=${eventId}, creator=${event.creator_id}, participant=${userId}`);
+          
+          const title = 'Etkinliğinizden Ayrılma';
+          const body = `${userInfo.first_name} ${userInfo.last_name} "${event.title}" etkinliğinizden ayrıldı`;
+          
+          await mobileNotificationService.createNotification({
+            user_id: event.creator_id,
+            title,
+            body,
+            data: {
+              type: 'EVENT_PARTICIPANT_LEFT',
+              eventId: eventId,
+              eventTitle: event.title,
+              participantId: userId,
+              participantName: `${userInfo.first_name} ${userInfo.last_name}`,
+              participantProfilePicture: userInfo.profile_picture,
+              deepLink: `sportlink://events/${eventId}`
+            },
+            notification_type: MobileNotificationType.EVENT_LEAVE,
+            device_token: null,
+            platform: null
+          });
+          
+          logger.info(`Etkinlikten ayrılma bildirimi başarıyla gönderildi: eventId=${eventId}`);
+        }
+      }
+    } catch (error) {
+      // Bildirim gönderme hatası ana işlemi etkilemesin
+      logger.error('Etkinlikten ayrılma bildirimi gönderme hatası:', error);
     }
     
     logger.info(`Kullanıcı başarıyla etkinlikten ayrıldı: eventId=${eventId}, userId=${userId}`);
@@ -1645,3 +1875,116 @@ export const getNearbyEvents = async (
     throw error;
   }
 }; 
+
+/**
+ * Kullanıcıyı etkinliğe davet eder
+ * @param eventId Etkinlik ID'si
+ * @param inviterId Davet eden kullanıcı ID'si
+ * @param inviteeId Davet edilen kullanıcı ID'si
+ * @returns Başarı mesajı
+ */
+export const inviteUserToEvent = async (
+  eventId: string,
+  inviterId: string,
+  inviteeId: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    logger.info(`Kullanıcı etkinliğe davet ediliyor: eventId=${eventId}, inviterId=${inviterId}, inviteeId=${inviteeId}`);
+    
+    // Etkinliğin var olduğunu kontrol et
+    const event = await findEventById(eventId);
+    
+    // Etkinlik aktif mi kontrol et
+    if (event.status !== EventStatus.ACTIVE) {
+      logger.warn(`Etkinlik aktif değil: eventId=${eventId}, status=${event.status}`);
+      throw new Error(`Bu etkinliğe davet gönderemezsiniz. Etkinlik durumu: ${event.status}`);
+    }
+    
+    // Eğer etkinlik doluysa davet gönderme
+    const currentParticipants = event.current_participants || 0;
+    if (currentParticipants >= event.max_participants) {
+      logger.warn(`Etkinlik dolu: eventId=${eventId}`);
+      throw new Error('Bu etkinlik maksimum katılımcı sayısına ulaştı, davet gönderemezsiniz');
+    }
+    
+    // Davet edilen kullanıcı zaten etkinliğe katılmış mı kontrol et
+    const { data: existingParticipation, error: participationError } = await supabaseAdmin
+      .from('Event_Participants')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('user_id', inviteeId)
+      .maybeSingle();
+    
+    if (participationError) {
+      logger.error('Katılım kontrolü sırasında hata:', participationError);
+      throw new Error('Katılım durumu kontrol edilirken bir hata oluştu');
+    }
+    
+    if (existingParticipation) {
+      logger.warn(`Kullanıcı zaten etkinliğe katılmış: eventId=${eventId}, inviteeId=${inviteeId}`);
+      throw new Error('Bu kullanıcı zaten etkinliğe katılmış');
+    }
+    
+    // Davet eden ve davet edilen kullanıcı bilgilerini al
+    const [inviterData, inviteeData] = await Promise.all([
+      supabaseAdmin
+        .from('users')
+        .select('id, first_name, last_name, profile_picture')
+        .eq('id', inviterId)
+        .single(),
+      supabaseAdmin
+        .from('users')
+        .select('id, first_name, last_name, profile_picture')
+        .eq('id', inviteeId)
+        .single()
+    ]);
+    
+    const inviter = inviterData.data;
+    const invitee = inviteeData.data;
+    
+    if (!inviter || !invitee) {
+      logger.error('Kullanıcı bilgileri alınamadı');
+      throw new Error('Kullanıcı bilgileri alınamadı');
+    }
+    
+    // Bildirim servisleri için gerekli modülleri yükle
+    const { MobileNotificationService } = require('../services/MobileNotificationService');
+    const { MobileNotificationType } = require('../models/MobileNotification');
+    
+    const mobileNotificationService = new MobileNotificationService();
+    
+    // Bildirim oluştur
+    const title = 'Etkinlik Daveti';
+    const body = `${inviter.first_name} ${inviter.last_name} sizi "${event.title}" etkinliğine davet etti`;
+    
+    logger.info(`Etkinlik daveti bildirimi gönderiliyor: eventId=${eventId}, inviterId=${inviterId}, inviteeId=${inviteeId}`);
+    
+    await mobileNotificationService.createNotification({
+      user_id: inviteeId,
+      title,
+      body,
+      data: {
+        type: 'EVENT_INVITATION',
+        eventId: eventId,
+        eventTitle: event.title,
+        inviterId: inviterId,
+        inviterName: `${inviter.first_name} ${inviter.last_name}`,
+        inviterProfilePicture: inviter.profile_picture,
+        deepLink: `sportlink://events/${eventId}`
+      },
+      notification_type: MobileNotificationType.EVENT_REMINDER,
+      device_token: null,
+      platform: null
+    });
+    
+    logger.info(`Etkinlik daveti bildirimi başarıyla gönderildi: eventId=${eventId}, inviteeId=${inviteeId}`);
+    
+    return { 
+      success: true, 
+      message: `${invitee.first_name} ${invitee.last_name} etkinliğe başarıyla davet edildi`
+    };
+  } catch (error) {
+    logger.error('Etkinliğe davet gönderilirken hata:', error);
+    throw error;
+  }
+};

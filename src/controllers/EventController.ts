@@ -1358,4 +1358,64 @@ export const getNearbyEvents = async (req: Request, res: Response) => {
     console.error('Nearby API hatası:', error instanceof Error ? error.message : 'Bilinmeyen hata');
     handleError(error as Error, res);
   }
+};
+
+/**
+ * Kullanıcıyı etkinliğe davet eder
+ */
+export const inviteUserToEvent = async (req: Request, res: Response) => {
+  try {
+    const { id: eventId } = req.params;
+    const { inviteeId } = req.body;
+    const inviterId = req.user?.id;
+
+    logger.info(`Etkinliğe davet isteği: eventId=${eventId}, inviterId=${inviterId}, inviteeId=${inviteeId}`);
+
+    // Gerekli alanların kontrolü
+    if (!inviterId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız.'
+      });
+    }
+
+    if (!inviteeId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Davet edilecek kullanıcı IDsi gereklidir.'
+      });
+    }
+
+    // Kullanıcının kendisini davet etmesini engelle
+    if (inviterId === inviteeId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Kendinizi etkinliğe davet edemezsiniz.'
+      });
+    }
+
+    try {
+      const result = await eventService.inviteUserToEvent(eventId, inviterId, inviteeId);
+      
+      return res.status(200).json({
+        status: 'success',
+        message: result.message
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.warn(`Etkinliğe davet hatası: ${error.message}`);
+        return res.status(400).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Etkinliğe davet hatası:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Etkinliğe davet gönderilirken bir hata oluştu.'
+    });
+  }
 }; 
