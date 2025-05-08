@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+import supabase from '../config/supabase';
 import logger from '../utils/logger';
 import { Database } from '../types/supabase';
 
@@ -11,7 +11,7 @@ export const SportsService = {
   async getAllSports(): Promise<Sport[]> {
     logger.info('SportsService: Tüm spor kategorileri getiriliyor...');
     try {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await supabase
         .from('Sports')
         .select('*')
         .order('name');
@@ -34,7 +34,7 @@ export const SportsService = {
    */
   async getSportById(id: number | string): Promise<Sport | null> {
     try {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await supabase
         .from('Sports')
         .select('*')
         .eq('id', id)

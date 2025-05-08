@@ -1,210 +1,82 @@
 import { Request, Response } from 'express';
-import * as announcementService from '../services/announcementService';
-import { uploadToStorage } from '../middleware/uploadMiddleware';
+import { StatusCodes } from 'http-status-codes';
+import AnnouncementService from '../services/announcementService';
 
 /**
- * Tüm duyuruları listeler
+ * List all announcements
  * @param req Express Request
  * @param res Express Response
  */
-export const getAllAnnouncements = async (req: Request, res: Response): Promise<void> => {
+export const getAllAnnouncements = async (req: Request, res: Response) => {
   try {
-    const announcements = await announcementService.getAllAnnouncements();
+    const announcements = await AnnouncementService.getAllAnnouncements();
     
-    res.status(200).json({
-      message: 'Duyurular başarıyla getirildi',
+    return res.status(StatusCodes.OK).json({
+      success: true,
       data: announcements
     });
-  } catch (error) {
-    console.error('Duyurular getirilirken hata oluştu:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+  } catch (error: any) {
+    console.error('Error (getAllAnnouncements controller):', error);
     
-    res.status(500).json({ 
-      message: 'Duyurular getirilirken bir hata oluştu', 
-      error: errorMessage 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Error retrieving announcements'
     });
   }
 };
 
 /**
- * Tek bir duyuruyu ID ile getirir
+ * Get a single announcement by ID
  * @param req Express Request
  * @param res Express Response
  */
-export const getAnnouncementById = async (req: Request, res: Response): Promise<void> => {
+export const getAnnouncementById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const announcementId = req.params.id;
     
-    if (!id) {
-      res.status(400).json({ message: 'Duyuru ID gereklidir' });
-      return;
+    if (!announcementId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'Invalid announcement ID'
+      });
     }
-    
-    const announcement = await announcementService.getAnnouncementById(id);
+
+    const announcement = await AnnouncementService.getAnnouncementById(announcementId);
     
     if (!announcement) {
-      res.status(404).json({ message: 'Duyuru bulunamadı' });
-      return;
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: 'Announcement not found'
+      });
     }
     
-    res.status(200).json({
-      message: 'Duyuru başarıyla getirildi',
+    return res.status(StatusCodes.OK).json({
+      success: true,
       data: announcement
     });
-  } catch (error) {
-    console.error('Duyuru getirilirken hata oluştu:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
-    
-    if (errorMessage.includes('bulunamadı')) {
-      res.status(404).json({ message: errorMessage });
-    } else {
-      res.status(500).json({ 
-        message: 'Duyuru getirilirken bir hata oluştu', 
-        error: errorMessage 
-      });
-    }
-  }
-};
-
-/**
- * Yeni bir duyuru oluşturur (sadece admin)
- * @param req Express Request
- * @param res Express Response
- */
-export const createAnnouncement = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { title, content } = req.body;
-    const creatorId = req.user?.id;
-    
-    // Dosya yükleme işlemini başlat
-    let image_url = null;
-    if (req.file) {
-      // Dosyayı Supabase Storage'a yükle
-      image_url = await uploadToStorage(req.file);
-    }
-    
-    if (!title || !content) {
-      res.status(400).json({ message: 'Başlık ve içerik alanları zorunludur' });
-      return;
-    }
-    
-    if (!creatorId) {
-      res.status(401).json({ message: 'Bu işlem için giriş yapmalısınız' });
-      return;
-    }
-    
-    const newAnnouncement = await announcementService.createAnnouncement({
-      title,
-      content,
-      image_url,
-      creator_id: creatorId
-    });
-    
-    res.status(201).json({
-      message: 'Duyuru başarıyla oluşturuldu',
-      data: newAnnouncement
-    });
-  } catch (error) {
-    console.error('Duyuru oluşturulurken hata oluştu:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
-    
-    res.status(500).json({ 
-      message: 'Duyuru oluşturulurken bir hata oluştu', 
-      error: errorMessage 
+  } catch (error: any) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Error retrieving announcement'
     });
   }
 };
 
-/**
- * Bir duyuruyu günceller (sadece admin)
- * @param req Express Request
- * @param res Express Response
- */
-export const updateAnnouncement = async (req: Request, res: Response): Promise<void> => {
+// Get latest announcements (with limit)
+export const getLatestAnnouncements = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { title, content } = req.body;
-    const adminId = req.user?.id;
+    const limit = parseInt(req.query.limit as string) || 5;
     
-    // Dosya yükleme işlemini başlat
-    let image_url = undefined; // undefined kullanıldığında mevcut değer korunur
-    if (req.file) {
-      // Dosyayı Supabase Storage'a yükle
-      image_url = await uploadToStorage(req.file);
-    }
+    const announcements = await AnnouncementService.getLatestAnnouncements(limit);
     
-    if (!id) {
-      res.status(400).json({ message: 'Duyuru ID gereklidir' });
-      return;
-    }
-    
-    if (!adminId) {
-      res.status(401).json({ message: 'Bu işlem için yetkiniz bulunmamaktadır' });
-      return;
-    }
-    
-    const updatedAnnouncement = await announcementService.updateAnnouncement(id, {
-      title,
-      content,
-      image_url,
-      updater_id: adminId
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: announcements
     });
-    
-    res.status(200).json({
-      message: 'Duyuru başarıyla güncellendi',
-      data: updatedAnnouncement
+  } catch (error: any) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message || 'Error retrieving announcements'
     });
-  } catch (error) {
-    console.error('Duyuru güncellenirken hata oluştu:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
-    
-    if (errorMessage.includes('bulunamadı')) {
-      res.status(404).json({ message: errorMessage });
-    } else {
-      res.status(500).json({ 
-        message: 'Duyuru güncellenirken bir hata oluştu', 
-        error: errorMessage 
-      });
-    }
-  }
-};
-
-/**
- * Bir duyuruyu siler (sadece admin)
- * @param req Express Request
- * @param res Express Response
- */
-export const deleteAnnouncement = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const adminId = req.user?.id;
-    
-    if (!id) {
-      res.status(400).json({ message: 'Duyuru ID gereklidir' });
-      return;
-    }
-    
-    if (!adminId) {
-      res.status(401).json({ message: 'Bu işlem için yetkiniz bulunmamaktadır' });
-      return;
-    }
-    
-    await announcementService.deleteAnnouncement(id);
-    
-    res.status(200).json({
-      message: 'Duyuru başarıyla silindi'
-    });
-  } catch (error) {
-    console.error('Duyuru silinirken hata oluştu:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
-    
-    if (errorMessage.includes('bulunamadı')) {
-      res.status(404).json({ message: errorMessage });
-    } else {
-      res.status(500).json({ 
-        message: 'Duyuru silinirken bir hata oluştu', 
-        error: errorMessage 
-      });
-    }
   }
 }; 
