@@ -28,9 +28,6 @@ type DefaultUser = {
 
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    console.log('##### AUTH MIDDLEWARE BAŞLATILDI #####');
-    console.log('Request URL:', req.originalUrl);
-    
     // 1) Get token from the Authorization header
     let token;
     if (
@@ -38,12 +35,9 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       req.headers.authorization.startsWith('Bearer')
     ) {
       token = req.headers.authorization.split(' ')[1];
-      console.log('Token bulundu:', token.substring(0, 10) + '...');
     }
 
     if (!token) {
-      console.log('##### TOKEN BULUNAMADI HATASI #####');
-      console.log('Headers:', JSON.stringify(req.headers));
       logger.error('Token bulunamadı');
       return res.status(401).json({
         status: 'error',
@@ -52,7 +46,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     }
 
     // 2) Verify token
-    console.log('Token doğrulanıyor...');
     logger.info('Token doğrulanıyor...');
     
     // Supabase client with JWT for RLS and auth
@@ -60,8 +53,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     const { data, error } = await supa.auth.getUser();
 
     if (error) {
-      console.log('##### TOKEN DOĞRULAMA HATASI #####');
-      console.log('Hata:', error);
       logger.error('Token doğrulama hatası:', error);
       return res.status(401).json({
         status: 'error',
@@ -70,7 +61,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     }
 
     if (!data.user) {
-      console.log('##### KULLANICI BULUNAMADI HATASI #####');
       logger.error('Token geçerli ama kullanıcı bulunamadı');
       return res.status(401).json({
         status: 'error',
@@ -86,34 +76,23 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       .single();
 
     if (userError) {
-      console.log('##### KULLANICI DURUMU KONTROL HATASI #####');
-      console.log('Hata:', userError);
       logger.error('Kullanıcı durumu kontrolü hatası:', userError);
       return res.status(500).json({ error: 'Sunucu hatası' });
     }
 
     if (userData?.status === 'inactive') {
-      console.log('##### KULLANICI İNAKTİF HATASI #####');
       return res.status(403).json({ error: 'Hesabınız devre dışı bırakılmıştır. Lütfen yönetici ile iletişime geçin.' });
     }
 
-    console.log(`Token doğrulandı, kullanıcı ID: ${data.user.id}`);
     logger.info(`Token doğrulandı, kullanıcı ID: ${data.user.id}`);
     
     // Kullanıcı bilgilerini profil tablosundan almayı deniyoruz
-    console.log('Kullanıcı profili aranıyor...');
     logger.info('Kullanıcı profili aranıyor...');
     const userProfile = await userService.findUserById(data.user.id);
     
     if (!userProfile) {
-      console.log('##### KULLANICI PROFİLİ BULUNAMADI #####');
       logger.warn('Kullanıcı profili bulunamadı, varsayılan profil kullanılacak');
     } else {
-      console.log('Kullanıcı profili bulundu:', {
-        id: userProfile.id,
-        email: userProfile.email,
-        role: userProfile.role
-      });
       logger.info('Kullanıcı profili bulundu:', {
         id: userProfile.id,
         email: userProfile.email,
@@ -135,10 +114,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     };
     req.userProfile = userProfile || defaultUser;
     
-    console.log('##### AUTH MIDDLEWARE TAMAMLANDI #####');
-    console.log('req.user atandı:', !!req.user);
-    console.log('req.userProfile atandı:', !!req.userProfile);
-    
     logger.info('Kullanıcı yetkilendirildi:', {
       id: req.userProfile.id,
       email: req.userProfile.email,
@@ -147,8 +122,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     
     next();
   } catch (error) {
-    console.error('##### AUTH MIDDLEWARE HATASI #####');
-    console.error('Hata:', error instanceof Error ? error.message : 'Bilinmeyen hata');
     logger.error('Auth middleware hatası:', error);
     return res.status(500).json({ error: 'Sunucu hatası' });
   }
