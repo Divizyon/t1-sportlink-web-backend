@@ -197,6 +197,35 @@ class EventRatingController {
       });
     }
   }
+
+  // Etkinliğin ortalama puanını getir
+  async getEventAverageRating(req: Request, res: Response) {
+    try {
+      const eventId = parseInt(req.params.eventId);
+      
+      if (isNaN(eventId)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: 'Geçersiz etkinlik ID'
+        });
+      }
+
+      const ratingStats = await EventRatingService.getEventAverageRating(eventId);
+      
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        data: ratingStats
+      });
+    } catch (error: any) {
+      console.error('Hata (getEventAverageRating controller):', error);
+      
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: error.message || 'Etkinlik ortalama puanı getirilirken bir hata oluştu',
+        error: process.env.NODE_ENV === 'development' ? error : undefined
+      });
+    }
+  }
 }
 
 export default new EventRatingController(); 

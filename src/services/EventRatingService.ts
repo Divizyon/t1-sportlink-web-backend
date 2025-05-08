@@ -253,6 +253,44 @@ class EventRatingService {
       throw err;
     }
   }
+
+  // Etkinliğin ortalama puanını hesapla
+  async getEventAverageRating(eventId: number) {
+    try {
+      // Tamamlanmış etkinlikler için sadece null olmayan rating değerlerini al
+      const { data, error } = await supabase
+        .from('Event_Ratings')
+        .select('rating')
+        .eq('event_id', eventId)
+        .not('rating', 'is', null);
+      
+      if (error) {
+        throw new Error(`Etkinlik puanları getirilirken hata oluştu: ${error.message}`);
+      }
+      
+      // Rating değeri olan yorum sayısı
+      const ratingCount = data.length;
+      
+      // Hiç rating yoksa 0 döndür
+      if (ratingCount === 0) {
+        return { average: 0, count: 0 };
+      }
+      
+      // Toplam puanı hesapla
+      const ratingSum = data.reduce((sum, item) => sum + item.rating, 0);
+      
+      // Ortalama puanı hesapla (2 ondalık basamağa yuvarla)
+      const averageRating = Math.round((ratingSum / ratingCount) * 100) / 100;
+      
+      return {
+        average: averageRating,
+        count: ratingCount
+      };
+    } catch (err) {
+      console.error('Exception in getEventAverageRating:', err);
+      throw err;
+    }
+  }
 }
 
 export default new EventRatingService(); 
