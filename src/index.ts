@@ -12,10 +12,9 @@ import reportRoutes from './routes/reportRoutes';
 import profileRoutes from './routes/profileRoutes';
 import statsRoutes from './routes/statsRoutes';
 import statisticsRoutes from './routes/statisticsRoutes';
-import newsRoutes from './routes/newsRoutes';
-import newsScraperRoutes from './routes/newsScraperRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import announcementRoutes from './routes/announcementRoutes';
+import userReportRoutes from './routes/userReportRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import logRequest from './middleware/loggerMiddleware';
 import { setupSwagger } from './middleware/swaggerMiddleware';
@@ -77,10 +76,9 @@ app.use('/api/sports', sportsRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/news', newsRoutes);
-app.use('/api/news-scraper', newsScraperRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/user-reports', userReportRoutes);
 
 // Mobil API Routes
 import mobileFriendshipRoutes from './routes/friendshipRoutes';
