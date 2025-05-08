@@ -105,6 +105,75 @@ const options: swaggerJsdoc.Options = {
               example: '2025-12-31T23:59:59Z'
             }
           }
+        },
+        UserReport: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'Rapor ID',
+              example: 42
+            },
+            report_reason: {
+              type: 'string',
+              description: 'Rapor sebebi',
+              example: 'Uygunsuz davranış'
+            },
+            report_date: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Rapor tarihi',
+              example: '2025-01-15T14:30:00Z'
+            },
+            status: {
+              type: 'string',
+              description: 'Raporun durumu',
+              example: 'pending',
+              enum: ['pending', 'reviewing', 'resolved', 'rejected']
+            },
+            event_id: {
+              type: 'string',
+              description: 'Raporlanan etkinlik ID (eğer etkinlik raporuysa)',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+              nullable: true
+            },
+            reported_id: {
+              type: 'string',
+              description: 'Raporlanan kullanıcı ID (eğer kullanıcı raporuysa)',
+              example: '123e4567-e89b-12d3-a456-426614174001',
+              nullable: true
+            },
+            reported: {
+              type: 'object',
+              description: 'Raporlanan kullanıcı bilgileri',
+              nullable: true,
+              properties: {
+                username: {
+                  type: 'string',
+                  example: 'johndoe'
+                },
+                first_name: {
+                  type: 'string',
+                  example: 'John'
+                },
+                last_name: {
+                  type: 'string',
+                  example: 'Doe'
+                }
+              }
+            },
+            event: {
+              type: 'object',
+              description: 'Raporlanan etkinlik bilgileri',
+              nullable: true,
+              properties: {
+                title: {
+                  type: 'string',
+                  example: 'Pazar Sabahı Koşusu'
+                }
+              }
+            }
+          }
         }
       }
     },
