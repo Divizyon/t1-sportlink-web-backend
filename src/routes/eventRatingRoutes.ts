@@ -384,4 +384,52 @@ router.delete(
   eventRatingController.deleteRating
 );
 
+/**
+ * @swagger
+ * /event-ratings/{eventId}/average:
+ *   get:
+ *     summary: Etkinliğin ortalama puanını getir
+ *     tags: [Event Ratings]
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Etkinlik ID
+ *     responses:
+ *       200:
+ *         description: Etkinlik ortalama puanı başarıyla getirildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     average:
+ *                       type: number
+ *                       format: float
+ *                       example: 4.25
+ *                     count:
+ *                       type: integer
+ *                       example: 12
+ *       400:
+ *         description: Geçersiz etkinlik ID
+ *       500:
+ *         description: Sunucu hatası
+ */
+router.get(
+  '/:eventId/average',
+  [
+    param('eventId').isInt().withMessage('Geçersiz etkinlik ID')
+  ],
+  validate,
+  eventRatingController.getEventAverageRating
+);
+
 export default router; 
