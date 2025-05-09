@@ -372,6 +372,7 @@ export const getUsersByRoleController = async (req: Request, res: Response) => {
 export const freezeAccountController = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
+    const userRole = req.user?.role;
 
     if (!userId) {
       return res.status(401).json({
@@ -380,8 +381,47 @@ export const freezeAccountController = async (req: Request, res: Response) => {
       });
     }
 
+    // Hesap dondurma işlemini gerçekleştir
     const result = await userService.freezeUserAccount(userId);
     
+    // Eğer kullanıcı rolü USER ise, raporları getir
+    if (userRole === 'USER' && result.success) {
+      try {
+        // Kullanıcının açtığı raporları getir (kullanıcıları raporladığı)
+        const { data: userReports, error: userReportsError } = await supabase
+          .from('Reports')
+          .select('id, reported_id, report_type, description, status, created_at')
+          .eq('reporter_id', userId);
+          
+        if (userReportsError) {
+          logger.error('Kullanıcı raporlarını getirme hatası:', userReportsError);
+        }
+        
+        // Kullanıcının raporladığı etkinlikleri getir
+        const { data: eventReports, error: eventReportsError } = await supabase
+          .from('Reports')
+          .select('id, event_id, report_type, description, status, created_at')
+          .eq('reporter_id', userId)
+          .not('event_id', 'is', null);
+          
+        if (eventReportsError) {
+          logger.error('Etkinlik raporlarını getirme hatası:', eventReportsError);
+        }
+        
+        return res.status(200).json({
+          ...result,
+          reports: {
+            userReports: userReports || [],
+            eventReports: eventReports || []
+          }
+        });
+      } catch (reportsError) {
+        logger.error('Raporları getirme hatası:', reportsError);
+        return res.status(200).json(result); // Ana işlem başarılı olduğu için 200 dönüyor
+      }
+    }
+    
+    // USER değilse sadece normal sonucu döndür
     return res.status(200).json(result);
   } catch (error) {
     logger.error('Hesap dondurma controller hatası:', error);
@@ -401,6 +441,7 @@ export const freezeAccountController = async (req: Request, res: Response) => {
 export const deleteAccountController = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
+    const userRole = req.user?.role;
 
     if (!userId) {
       return res.status(401).json({
@@ -409,8 +450,47 @@ export const deleteAccountController = async (req: Request, res: Response) => {
       });
     }
 
+    // Hesap silme işlemini gerçekleştir
     const result = await userService.requestAccountDeletion(userId);
     
+    // Eğer kullanıcı rolü USER ise, raporları getir
+    if (userRole === 'USER' && result.success) {
+      try {
+        // Kullanıcının açtığı raporları getir (kullanıcıları raporladığı)
+        const { data: userReports, error: userReportsError } = await supabase
+          .from('Reports')
+          .select('id, reported_id, report_type, description, status, created_at')
+          .eq('reporter_id', userId);
+          
+        if (userReportsError) {
+          logger.error('Kullanıcı raporlarını getirme hatası:', userReportsError);
+        }
+        
+        // Kullanıcının raporladığı etkinlikleri getir
+        const { data: eventReports, error: eventReportsError } = await supabase
+          .from('Reports')
+          .select('id, event_id, report_type, description, status, created_at')
+          .eq('reporter_id', userId)
+          .not('event_id', 'is', null);
+          
+        if (eventReportsError) {
+          logger.error('Etkinlik raporlarını getirme hatası:', eventReportsError);
+        }
+        
+        return res.status(200).json({
+          ...result,
+          reports: {
+            userReports: userReports || [],
+            eventReports: eventReports || []
+          }
+        });
+      } catch (reportsError) {
+        logger.error('Raporları getirme hatası:', reportsError);
+        return res.status(200).json(result); // Ana işlem başarılı olduğu için 200 dönüyor
+      }
+    }
+    
+    // USER değilse sadece normal sonucu döndür
     return res.status(200).json(result);
   } catch (error) {
     logger.error('Hesap silme controller hatası:', error);
