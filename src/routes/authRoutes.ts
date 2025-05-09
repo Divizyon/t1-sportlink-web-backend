@@ -419,4 +419,28 @@ router.post('/logout', protect, AuthController.logout);
  */
 router.get('/confirm', AuthController.confirmEmail);
 
+/**
+ * @swagger
+ * /api/auth/verify:
+ *   get:
+ *     summary: Verify email token
+ *     description: Process the email verification token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The verification token
+ *     responses:
+ *       302:
+ *         description: Redirects to frontend after verification
+ *       400:
+ *         description: Invalid verification token
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/verify', AuthController.verifyEmail);
+
 export default router;
