@@ -4,6 +4,7 @@ import * as userService from '../services/userService';
 import { LoginDTO, CreateUserDTO } from '../models/User';
 import { SecurityService } from '../services/securityService';
 import logger from '../utils/logger';
+import supabase,{ supabaseAdmin } from '../config/supabase';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -406,5 +407,47 @@ export const handleOAuthCallback = async (req: Request, res: Response) => {
     errorUrl.searchParams.append('error', 'Google ile giriş başarısız oldu');
     
     res.redirect(errorUrl.toString());
+  }
+};
+
+export const resendConfirmationEmail = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email
+    });
+    
+    if (error) throw error;
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Doğrulama e-postası tekrar gönderildi'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false, 
+      message: 'Doğrulama e-postası gönderilemedi'
+    });
+  }
+};
+
+export const confirmEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).send('Geçersiz doğrulama bağlantısı');
+    }
+
+    // Frontend URL'inizi buraya yazın
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    
+    // Doğrulama token'ı ile frontend'e yönlendir
+    // Frontend bu token'ı işleyecek
+    res.redirect(`${frontendUrl}/auth/confirm?token=${token}`);
+  } catch (error) {
+    console.error('Email confirmation error:', error);
+    res.status(500).send('Doğrulama işlemi sırasında bir hata oluştu');
   }
 }; 
