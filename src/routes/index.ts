@@ -3,11 +3,9 @@ import authRoutes from './authRoutes';
 import sportsRoutes from './sportsRoutes';
 import userRoutes from './userRoutes';
 import eventRoutes from './eventRoutes';
-import newsRoutes from './newsRoutes';
-import reportRoutes from './reportRoutes';
-import securityRoutes from './securityRoutes';
 import announcementRoutes from './announcementRoutes';
 import eventRatingRoutes from './eventRatingRoutes';
+import userReportRoutes from './userReportRoutes';
 import { authenticate, requireAuth, requireAdmin } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -27,13 +25,13 @@ router.use('/announcements', announcementRoutes);
 // Protected routes (auth required)
 router.use('/user', requireAuth, userRoutes);
 router.use('/events', eventRoutes);
-router.use('/news', newsRoutes);
-router.use('/reports', requireAuth, reportRoutes);
+
+// Kullanıcı raporlama işlemleri için
+router.use('/user-reports', requireAuth, userReportRoutes);
 
 // Event ratings routes
 router.use('/event-ratings', eventRatingRoutes);
 
-// Admin routes
-router.use('/security', requireAdmin, securityRoutes);
+// Note: Security logs endpointleri kaldırıldı, eğer gerekirse adminSecurityRoutes.ts dosyasından erişilebilir
 
 export default router; 

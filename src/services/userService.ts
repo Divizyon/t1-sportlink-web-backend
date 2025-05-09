@@ -1039,6 +1039,50 @@ export const getUsersByRole = async (page: number = 1, limit: number = 10, sortB
 };
 
 /**
+ * Güvenlik log kaydı oluşturur (USER rolündeki kullanıcılar için log oluşturmaz)
+ * @param userId Kullanıcı ID
+ * @param actionType Aksiyon tipi
+ * @param description Açıklama
+ */
+const createSecurityLogIfNotUser = async (userId: string, actionType: string, description: string) => {
+  try {
+    // Kullanıcının rolünü kontrol et
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      logger.error('Security log için kullanıcı bilgisi alınamadı:', userError);
+      return;
+    }
+    
+    // USER rolündeki kullanıcılar için log oluşturma
+    if (userData.role === 'USER') {
+      return;
+    }
+    
+    // Security log kaydı oluştur
+    const { error: logError } = await supabase
+      .from('security_logs')
+      .insert({
+        user_id: userId,
+        action_type: actionType,
+        description: description,
+        created_at: new Date().toISOString()
+      });
+      
+    if (logError) {
+      logger.error('Security log kaydı oluşturma hatası:', logError);
+    }
+  } catch (error) {
+    logger.error('Security log oluşturma hatası:', error);
+    // Ana işlemi etkilememesi için hata fırlatmıyoruz
+  }
+};
+
+/**
  * Kullanıcı hesabını dondurur, 30 gün içinde giriş yapılmazsa hesap inactive olur
  * @param userId Kullanıcı ID
  * @returns İşlem sonucu
@@ -1080,6 +1124,13 @@ export const freezeUserAccount = async (userId: string): Promise<{ success: bool
       logger.error('Hesap dondurma hatası:', updateError);
       throw new Error('Hesap dondurulurken bir hata oluştu');
     }
+    
+    // Security log kaydı oluştur (USER rolündeki kullanıcılar için oluşturmaz)
+    await createSecurityLogIfNotUser(
+      userId,
+      'ACCOUNT_FREEZE',
+      'Kullanıcı hesabını dondurma işlemi'
+    );
     
     logger.info(`Kullanıcı hesabı donduruldu, Kullanıcı ID: ${userId}, Dondurma Tarihi: ${freezeDate}`);
     
@@ -1139,6 +1190,13 @@ export const requestAccountDeletion = async (userId: string): Promise<{ success:
       throw new Error('Hesap silme talebi işlenirken bir hata oluştu');
     }
     
+    // Security log kaydı oluştur (USER rolündeki kullanıcılar için oluşturmaz)
+    await createSecurityLogIfNotUser(
+      userId,
+      'ACCOUNT_DELETION',
+      'Kullanıcı hesabını silme işlemi (inactive yapıldı)'
+    );
+    
     logger.info(`Kullanıcı hesabı silme talebi tamamlandı, hesap inactive yapıldı, Kullanıcı ID: ${userId}`);
     
     return {
@@ -1153,4 +1211,133 @@ export const requestAccountDeletion = async (userId: string): Promise<{ success:
       message: errorMessage
     };
   }
-}; 
+};
+
+/**
+ * Kullanıcının gönderdiği tüm raporları getirir
+ * @param userId Kullanıcı ID
+ * @returns Kullanıcının gönderdiği tüm raporlar
+ */
+export const getUserReportsByReporterId = async (userId: string) => {
+  try {
+    logger.info(`Kullanıcının gönderdiği raporlar getiriliyor, Kullanıcı ID: ${userId}`);
+    
+    // Kullanıcının diğer kullanıcılar hakkında açtığı raporlar
+    const { data: userReports, error: userReportsError } = await supabase
+      .from('Reports')
+      .select(`
+        id,
+        report_type,
+        description,
+        status,
+        created_at,
+        reported_id,
+        reportedUser:users!reported_id (
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .eq('reporter_id', userId)
+      .not('reported_id', 'is', null);
+      
+    if (userReportsError) {
+      logger.error('Kullanıcı raporları getirme hatası:', userReportsError);
+      throw new Error('Kullanıcı raporları getirilirken bir hata oluştu');
+    }
+    
+    // Kullanıcının etkinlikler hakkında açtığı raporlar
+    const { data: eventReports, error: eventReportsError } = await supabase
+      .from('Reports')
+      .select(`
+        id,
+        report_type,
+        description,
+        status,
+        created_at,
+        event_id,
+        reportedEvent:Events!event_id (
+          title,
+          event_date,
+          status
+        )
+      `)
+      .eq('reporter_id', userId)
+      .not('event_id', 'is', null);
+      
+    if (eventReportsError) {
+      logger.error('Etkinlik raporları getirme hatası:', eventReportsError);
+      throw new Error('Etkinlik raporları getirilirken bir hata oluştu');
+    }
+    
+    // Raporları formatla
+    const formattedUserReports = userReports ? userReports.map(report => {
+      const reportedUser = report.reportedUser as { 
+        first_name?: string; 
+        last_name?: string; 
+        email?: string 
+      } || {};
+      
+      return {
+        id: report.id,
+        tip: report.report_type,
+        durum: getStatusText(report.status),
+        aciklama: report.description,
+        tarih: format(new Date(report.created_at), 'yyyy-MM-dd HH:mm'),
+        raporlanan_tip: 'Kullanıcı',
+        raporlanan: `${reportedUser.first_name || ''} ${reportedUser.last_name || ''}`.trim() || 'Bilinmeyen Kullanıcı',
+        raporlanan_email: reportedUser.email || '',
+        raporlanan_id: report.reported_id
+      };
+    }) : [];
+    
+    const formattedEventReports = eventReports ? eventReports.map(report => {
+      const reportedEvent = report.reportedEvent as {
+        title?: string;
+        event_date?: string;
+        status?: string;
+      } || {};
+      
+      return {
+        id: report.id,
+        tip: report.report_type,
+        durum: getStatusText(report.status),
+        aciklama: report.description,
+        tarih: format(new Date(report.created_at), 'yyyy-MM-dd HH:mm'),
+        raporlanan_tip: 'Etkinlik',
+        raporlanan: reportedEvent.title || 'Bilinmeyen Etkinlik',
+        raporlanan_tarih: reportedEvent.event_date ? format(new Date(reportedEvent.event_date), 'yyyy-MM-dd HH:mm') : '',
+        raporlanan_durum: reportedEvent.status || '',
+        raporlanan_id: report.event_id
+      };
+    }) : [];
+    
+    return {
+      userReports: formattedUserReports,
+      eventReports: formattedEventReports,
+      totalCount: (formattedUserReports.length + formattedEventReports.length)
+    };
+    
+  } catch (error) {
+    logger.error('Kullanıcı raporları getirme servisi hatası:', error);
+    throw error;
+  }
+};
+
+// Rapor durumunu anlaşılır metne çeviren yardımcı fonksiyon
+function getStatusText(status: string | null): string {
+  if (!status) return 'Beklemede';
+  
+  switch (status.toLowerCase()) {
+    case 'pending':
+      return 'Beklemede';
+    case 'reviewing':
+      return 'İnceleniyor';
+    case 'resolved':
+      return 'Çözüldü';
+    case 'rejected':
+      return 'Reddedildi';
+    default:
+      return 'Beklemede';
+  }
+} 

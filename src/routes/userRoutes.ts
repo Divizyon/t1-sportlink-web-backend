@@ -9,7 +9,8 @@ import {
   toggleUserWatch,
   getUsersByRoleController,
   freezeAccountController,
-  deleteAccountController
+  deleteAccountController,
+  getUserOwnReportsController
 } from '../controllers/UserController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -827,5 +828,97 @@ router.post('/account/delete', protect, deleteAccountController);
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/role/user', getUsersByRoleController);
+
+/**
+ * @swagger
+ * /api/users/my-reports:
+ *   get:
+ *     summary: Kullanıcının kendi gönderdiği raporları görüntüle
+ *     description: Kullanıcının gönderdiği kullanıcı ve etkinlik raporlarını listeler
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Kullanıcı raporları başarıyla getirildi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userReports:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: number
+ *                           tip:
+ *                             type: string
+ *                           durum:
+ *                             type: string
+ *                           aciklama:
+ *                             type: string
+ *                           tarih:
+ *                             type: string
+ *                           raporlanan_tip:
+ *                             type: string
+ *                           raporlanan:
+ *                             type: string
+ *                           raporlanan_email:
+ *                             type: string
+ *                           raporlanan_id:
+ *                             type: string
+ *                     eventReports:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: number
+ *                           tip:
+ *                             type: string
+ *                           durum:
+ *                             type: string
+ *                           aciklama:
+ *                             type: string
+ *                           tarih:
+ *                             type: string
+ *                           raporlanan_tip:
+ *                             type: string
+ *                           raporlanan:
+ *                             type: string
+ *                           raporlanan_tarih:
+ *                             type: string
+ *                           raporlanan_durum:
+ *                             type: string
+ *                           raporlanan_id:
+ *                             type: string
+ *                     totalCount:
+ *                       type: number
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Sunucu hatası
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ */
+router.get('/my-reports', getUserOwnReportsController);
 
 export default router;
