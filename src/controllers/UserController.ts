@@ -502,4 +502,39 @@ export const deleteAccountController = async (req: Request, res: Response) => {
       error: errorMessage
     });
   }
+};
+
+/**
+ * Kullanıcının kendi gönderdiği raporları getirir
+ * @param req Express Request
+ * @param res Express Response
+ */
+export const getUserOwnReportsController = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Bu işlemi gerçekleştirmek için giriş yapmalısınız'
+      });
+    }
+
+    // Kullanıcının gönderdiği raporları getir
+    const userReports = await userService.getUserReportsByReporterId(userId);
+    
+    return res.status(200).json({
+      success: true,
+      data: userReports
+    });
+  } catch (error) {
+    logger.error('Kullanıcı raporları getirme controller hatası:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu';
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Kullanıcı raporları getirilirken bir hata oluştu',
+      error: errorMessage
+    });
+  }
 }; 
