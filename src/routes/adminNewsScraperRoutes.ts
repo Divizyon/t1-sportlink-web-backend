@@ -2,6 +2,10 @@ import { Router } from 'express';
 import { NewsScraperController } from '../controllers/NewsScraperController';
 import { protect, isAdmin } from '../middleware/authMiddleware';
 
+// Bu dosya, admin/yönetici tarafından kullanılan haber scraper endpoint'lerini içerir
+// Ancak artık API'da erişilemez durumdadır
+// İhtiyaç duyulursa tekrar eklenebilir
+
 const router = Router();
 const newsScraperController = new NewsScraperController();
 
