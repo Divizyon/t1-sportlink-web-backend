@@ -1211,4 +1211,133 @@ export const requestAccountDeletion = async (userId: string): Promise<{ success:
       message: errorMessage
     };
   }
-}; 
+};
+
+/**
+ * Kullanıcının gönderdiği tüm raporları getirir
+ * @param userId Kullanıcı ID
+ * @returns Kullanıcının gönderdiği tüm raporlar
+ */
+export const getUserReportsByReporterId = async (userId: string) => {
+  try {
+    logger.info(`Kullanıcının gönderdiği raporlar getiriliyor, Kullanıcı ID: ${userId}`);
+    
+    // Kullanıcının diğer kullanıcılar hakkında açtığı raporlar
+    const { data: userReports, error: userReportsError } = await supabase
+      .from('Reports')
+      .select(`
+        id,
+        report_type,
+        description,
+        status,
+        created_at,
+        reported_id,
+        reportedUser:users!reported_id (
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .eq('reporter_id', userId)
+      .not('reported_id', 'is', null);
+      
+    if (userReportsError) {
+      logger.error('Kullanıcı raporları getirme hatası:', userReportsError);
+      throw new Error('Kullanıcı raporları getirilirken bir hata oluştu');
+    }
+    
+    // Kullanıcının etkinlikler hakkında açtığı raporlar
+    const { data: eventReports, error: eventReportsError } = await supabase
+      .from('Reports')
+      .select(`
+        id,
+        report_type,
+        description,
+        status,
+        created_at,
+        event_id,
+        reportedEvent:Events!event_id (
+          title,
+          event_date,
+          status
+        )
+      `)
+      .eq('reporter_id', userId)
+      .not('event_id', 'is', null);
+      
+    if (eventReportsError) {
+      logger.error('Etkinlik raporları getirme hatası:', eventReportsError);
+      throw new Error('Etkinlik raporları getirilirken bir hata oluştu');
+    }
+    
+    // Raporları formatla
+    const formattedUserReports = userReports ? userReports.map(report => {
+      const reportedUser = report.reportedUser as { 
+        first_name?: string; 
+        last_name?: string; 
+        email?: string 
+      } || {};
+      
+      return {
+        id: report.id,
+        tip: report.report_type,
+        durum: getStatusText(report.status),
+        aciklama: report.description,
+        tarih: format(new Date(report.created_at), 'yyyy-MM-dd HH:mm'),
+        raporlanan_tip: 'Kullanıcı',
+        raporlanan: `${reportedUser.first_name || ''} ${reportedUser.last_name || ''}`.trim() || 'Bilinmeyen Kullanıcı',
+        raporlanan_email: reportedUser.email || '',
+        raporlanan_id: report.reported_id
+      };
+    }) : [];
+    
+    const formattedEventReports = eventReports ? eventReports.map(report => {
+      const reportedEvent = report.reportedEvent as {
+        title?: string;
+        event_date?: string;
+        status?: string;
+      } || {};
+      
+      return {
+        id: report.id,
+        tip: report.report_type,
+        durum: getStatusText(report.status),
+        aciklama: report.description,
+        tarih: format(new Date(report.created_at), 'yyyy-MM-dd HH:mm'),
+        raporlanan_tip: 'Etkinlik',
+        raporlanan: reportedEvent.title || 'Bilinmeyen Etkinlik',
+        raporlanan_tarih: reportedEvent.event_date ? format(new Date(reportedEvent.event_date), 'yyyy-MM-dd HH:mm') : '',
+        raporlanan_durum: reportedEvent.status || '',
+        raporlanan_id: report.event_id
+      };
+    }) : [];
+    
+    return {
+      userReports: formattedUserReports,
+      eventReports: formattedEventReports,
+      totalCount: (formattedUserReports.length + formattedEventReports.length)
+    };
+    
+  } catch (error) {
+    logger.error('Kullanıcı raporları getirme servisi hatası:', error);
+    throw error;
+  }
+};
+
+// Rapor durumunu anlaşılır metne çeviren yardımcı fonksiyon
+function getStatusText(status: string | null): string {
+  if (!status) return 'Beklemede';
+  
+  switch (status.toLowerCase()) {
+    case 'pending':
+      return 'Beklemede';
+    case 'reviewing':
+      return 'İnceleniyor';
+    case 'resolved':
+      return 'Çözüldü';
+    case 'rejected':
+      return 'Reddedildi';
+    default:
+      return 'Beklemede';
+  }
+} 
