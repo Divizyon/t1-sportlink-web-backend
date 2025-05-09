@@ -1039,6 +1039,50 @@ export const getUsersByRole = async (page: number = 1, limit: number = 10, sortB
 };
 
 /**
+ * Güvenlik log kaydı oluşturur (USER rolündeki kullanıcılar için log oluşturmaz)
+ * @param userId Kullanıcı ID
+ * @param actionType Aksiyon tipi
+ * @param description Açıklama
+ */
+const createSecurityLogIfNotUser = async (userId: string, actionType: string, description: string) => {
+  try {
+    // Kullanıcının rolünü kontrol et
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+      
+    if (userError || !userData) {
+      logger.error('Security log için kullanıcı bilgisi alınamadı:', userError);
+      return;
+    }
+    
+    // USER rolündeki kullanıcılar için log oluşturma
+    if (userData.role === 'USER') {
+      return;
+    }
+    
+    // Security log kaydı oluştur
+    const { error: logError } = await supabase
+      .from('security_logs')
+      .insert({
+        user_id: userId,
+        action_type: actionType,
+        description: description,
+        created_at: new Date().toISOString()
+      });
+      
+    if (logError) {
+      logger.error('Security log kaydı oluşturma hatası:', logError);
+    }
+  } catch (error) {
+    logger.error('Security log oluşturma hatası:', error);
+    // Ana işlemi etkilememesi için hata fırlatmıyoruz
+  }
+};
+
+/**
  * Kullanıcı hesabını dondurur, 30 gün içinde giriş yapılmazsa hesap inactive olur
  * @param userId Kullanıcı ID
  * @returns İşlem sonucu
@@ -1080,6 +1124,13 @@ export const freezeUserAccount = async (userId: string): Promise<{ success: bool
       logger.error('Hesap dondurma hatası:', updateError);
       throw new Error('Hesap dondurulurken bir hata oluştu');
     }
+    
+    // Security log kaydı oluştur (USER rolündeki kullanıcılar için oluşturmaz)
+    await createSecurityLogIfNotUser(
+      userId,
+      'ACCOUNT_FREEZE',
+      'Kullanıcı hesabını dondurma işlemi'
+    );
     
     logger.info(`Kullanıcı hesabı donduruldu, Kullanıcı ID: ${userId}, Dondurma Tarihi: ${freezeDate}`);
     
@@ -1138,6 +1189,13 @@ export const requestAccountDeletion = async (userId: string): Promise<{ success:
       logger.error('Hesap silme talebi hatası:', updateError);
       throw new Error('Hesap silme talebi işlenirken bir hata oluştu');
     }
+    
+    // Security log kaydı oluştur (USER rolündeki kullanıcılar için oluşturmaz)
+    await createSecurityLogIfNotUser(
+      userId,
+      'ACCOUNT_DELETION',
+      'Kullanıcı hesabını silme işlemi (inactive yapıldı)'
+    );
     
     logger.info(`Kullanıcı hesabı silme talebi tamamlandı, hesap inactive yapıldı, Kullanıcı ID: ${userId}`);
     
