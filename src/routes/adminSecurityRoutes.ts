@@ -2,6 +2,10 @@ import express from 'express';
 import SecurityController from '../controllers/SecurityController';
 import { isAdmin } from '../middleware/authMiddleware';
 
+// Bu dosya, admin/yönetici tarafından kullanılan güvenlik log endpoint'lerini içerir
+// Ancak artık routes/index.ts'de bağlantısı olmadığından API'da erişilemez durumdadır
+// İhtiyaç duyulursa tekrar eklenebilir
+
 const router = express.Router();
 
 /**
