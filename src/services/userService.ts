@@ -82,7 +82,7 @@ export const createUser = async (userData: CreateUserDTO): Promise<User | null> 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: userData.password,
-      email_confirm: true, // E-posta doğrulama işlemini atla (geliştirme kolaylığı için)
+      email_confirm: false, // E-posta doğrulaması gerekli
       user_metadata: {
         first_name: userData.first_name,
         last_name: userData.last_name,

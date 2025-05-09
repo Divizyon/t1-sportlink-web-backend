@@ -4,6 +4,7 @@ import * as userService from '../services/userService';
 import { LoginDTO, CreateUserDTO } from '../models/User';
 import { SecurityService } from '../services/securityService';
 import logger from '../utils/logger';
+import supabase,{ supabaseAdmin } from '../config/supabase';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -93,6 +94,15 @@ export const register = async (req: Request, res: Response) => {
     
     console.log('User created successfully:', newUser.id);
     
+    // Doğrulama e-postası gönder
+    try {
+      await authService.sendVerificationEmail(email);
+      console.log('Verification email sent to:', email);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError);
+      // E-posta gönderimi başarısız olsa bile işleme devam ediyoruz
+    }
+    
     // Başarılı kayıt işlemini logla
     await SecurityService.createLog({
       type: 'user_update',
@@ -105,7 +115,7 @@ export const register = async (req: Request, res: Response) => {
     // Başarılı yanıt
     res.status(201).json({
       status: 'success',
-      message: 'Kayıt işlemi başarılı.',
+      message: 'Kayıt işlemi başarılı. Lütfen e-posta adresinizi doğrulayın.',
       data: {
         user: {
           id: newUser.id,
@@ -406,5 +416,144 @@ export const handleOAuthCallback = async (req: Request, res: Response) => {
     errorUrl.searchParams.append('error', 'Google ile giriş başarısız oldu');
     
     res.redirect(errorUrl.toString());
+  }
+};
+
+export const resendConfirmationEmail = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email
+    });
+    
+    if (error) throw error;
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Doğrulama e-postası tekrar gönderildi'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false, 
+      message: 'Doğrulama e-postası gönderilemedi'
+    });
+  }
+};
+
+export const confirmEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).send('Geçersiz doğrulama bağlantısı');
+    }
+
+    // Frontend URL'inizi buraya yazın
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    
+    // Doğrulama token'ı ile frontend'e yönlendir
+    // Frontend bu token'ı işleyecek
+    res.redirect(`${frontendUrl}/auth/confirm?token=${token}`);
+  } catch (error) {
+    console.error('Email confirmation error:', error);
+    res.status(500).send('Doğrulama işlemi sırasında bir hata oluştu');
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).send('Token bulunamadı');
+    }
+
+    try {
+      // Token'dan kullanıcıyı bul
+      const { data: userDecodeData, error: decodeError } = await supabase.auth.getUser(token as string);
+      
+      if (decodeError || !userDecodeData?.user) {
+        console.error('Token geçersiz:', decodeError);
+        return res.status(400).send('Geçersiz token');
+      }
+      
+      const userId = userDecodeData.user.id;
+      const userEmail = userDecodeData.user.email;
+      
+      console.log(`Kullanıcı doğrulanıyor: ${userId} (${userEmail})`);
+      
+      // E-posta durumunu doğrulanmış olarak güncelle
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        { 
+          email_confirm: true,
+          user_metadata: {
+            ...userDecodeData.user.user_metadata,
+            email_verified: true
+          }
+        }
+      );
+
+      if (updateError) {
+        console.error('Kullanıcı güncelleme hatası:', updateError);
+        
+        // Admin API ile kullanıcı güncellenemiyorsa, alternatif çözüm uygula
+        // Kullanıcının son giriş zamanını güncelle (trigger kullanıcıyı oluşturacak)
+        try {
+          console.log('Alternatif yöntem deneniyor: Direct SQL update');
+          const { data: directUpdateData, error: directUpdateError } = await supabaseAdmin.rpc(
+            'manual_verify_user_email',
+            { user_id: userId }
+          );
+          
+          if (directUpdateError) {
+            console.error('Doğrudan güncelleme hatası:', directUpdateError);
+            return res.status(500).send('Doğrulama hatası: Kullanıcı güncellenemiyor');
+          }
+          
+          console.log('Alternatif doğrulama başarılı');
+        } catch (directUpdateErr) {
+          console.error('Alternatif güncelleme hatası:', directUpdateErr);
+          return res.status(500).send('Doğrulama hatası: Kullanıcı güncellenemiyor');
+        }
+      }
+
+      // Başarılı sayfası
+      res.send(`
+        <html>
+          <head>
+            <title>E-posta Doğrulandı</title>
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+              .container { max-width: 600px; margin: 0 auto; }
+              .success { color: green; }
+              .btn { 
+                display: inline-block; 
+                padding: 10px 20px; 
+                background-color: #4CAF50; 
+                color: white; 
+                text-decoration: none; 
+                border-radius: 4px; 
+                margin-top: 20px; 
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1 class="success">E-posta Adresiniz Doğrulandı!</h1>
+              <p>E-posta adresiniz başarıyla doğrulandı. Artık giriş yapabilirsiniz.</p>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" class="btn">Giriş Yap</a>
+            </div>
+          </body>
+        </html>
+      `);
+    } catch (err) {
+      console.error('Doğrulama işleminde hata:', err);
+      return res.status(500).send('Doğrulama sırasında bir hata oluştu');
+    }
+  } catch (error) {
+    console.error('Doğrulama hatası:', error);
+    res.status(500).send('Doğrulama işlemi sırasında bir hata oluştu');
   }
 }; 

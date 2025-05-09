@@ -402,4 +402,45 @@ router.post('/resend-verification', AuthController.resendVerificationEmail);
  */
 router.post('/logout', protect, AuthController.logout);
 
+/**
+ * @swagger
+ * /api/auth/confirm:
+ *   get:
+ *     summary: Confirm email
+ *     description: Confirm the user's email
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Email confirmed successfully
+ *       400:
+ *         description: Invalid confirmation token
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/confirm', AuthController.confirmEmail);
+
+/**
+ * @swagger
+ * /api/auth/verify:
+ *   get:
+ *     summary: Verify email token
+ *     description: Process the email verification token
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The verification token
+ *     responses:
+ *       302:
+ *         description: Redirects to frontend after verification
+ *       400:
+ *         description: Invalid verification token
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/verify', AuthController.verifyEmail);
+
 export default router;

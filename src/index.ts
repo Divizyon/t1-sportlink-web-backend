@@ -26,8 +26,7 @@ import { dbConnectionCheck } from './middleware/databaseMiddleware';
 import http from 'http';
 import { initializeSocket } from './config/socket';
 import logger from './utils/logger';
-import { schedulePushNotificationsJob } from './jobs/pushNotificationJob';
-import { scheduleEventReminderJob } from './jobs/eventReminderJob';
+import { supabaseAdmin } from './config/supabase';
 
 // Load environment variables
 dotenv.config({ override: true });
@@ -52,13 +51,18 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "img-src": ["'self'", "data:", "https:"]
+      "img-src": ["'self'", "data:", "https:"],
+      "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      "style-src": ["'self'", "'unsafe-inline'"]
     }
   }
-})); // Configure helmet to allow swagger-ui images
+})); // Configure helmet to allow inline scripts and styles
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(logRequest); // Add logRequest middleware
+
+// Statik dosyalar için public klasörünü kullan
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Setup Swagger documentation
 setupSwagger(app);
@@ -68,6 +72,17 @@ app.use(dbConnectionCheck);
 
 // Socket.IO başlat
 initializeSocket(server);
+
+// Özel yönlendirmeler - /auth/* route'larını /api/auth/* 'a yönlendir
+app.use('/auth/:path', (req, res) => {
+  const path = req.params.path;
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query as any).toString() 
+    : '';
+  
+  console.log(`/auth/${path} yönlendirmesi: /api/auth/${path}${queryString}`);
+  res.redirect(`/api/auth/${path}${queryString}`);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -85,11 +100,9 @@ app.use('/api/warnings', warningRoutes);
 // Mobil API Routes
 import mobileFriendshipRoutes from './routes/friendshipRoutes';
 import mobileMessageRoutes from './routes/messageRoutes';
-import mobileNotificationRoutes from './routes/mobileNotificationRoutes';
 
 app.use('/api/mobile/friendships', mobileFriendshipRoutes);
 app.use('/api/mobile/messages', mobileMessageRoutes);
-app.use('/api/mobile/notifications', mobileNotificationRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -111,8 +124,6 @@ const startServer = async () => {
       // Zamanlayıcı işlerini başlat
       scheduleCompletedEventsJob();
       scheduleAutoRejectEventsJob();
-      schedulePushNotificationsJob();
-      scheduleEventReminderJob();
       console.log('Scheduled jobs started');
     });
     
