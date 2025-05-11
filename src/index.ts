@@ -30,11 +30,13 @@ dotenv.config({ override: true });
 
 // Initialize express app
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // CORS options
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.CLIENT_URL || 'https://sportlink-web.vercel.app'] 
+    : ['http://localhost:3000', 'http://localhost:3001'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   credentials: true,
@@ -56,7 +58,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(logRequest); // Add logRequest middleware
 
 // Setup Swagger documentation
-setupSwagger(app);
+if (process.env.NODE_ENV !== 'production') {
+  setupSwagger(app);
+}
 
 // Veritabanı bağlantı kontrolü middleware'ini ekle
 app.use(dbConnectionCheck);
@@ -75,6 +79,11 @@ app.use('/api/news-scraper', newsScraperRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 
+// Health check endpoint for Vercel
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'SportLink API is running' });
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
@@ -90,16 +99,21 @@ const startServer = async () => {
     // Sunucuyu başlat
     const server = app.listen(port, () => {
       console.log(`Server running on port ${port}`);
-      console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+      }
       
       // Zamanlayıcı işlerini başlat
-      scheduleCompletedEventsJob();
-      scheduleAutoRejectEventsJob();
-      console.log('Scheduled jobs started');
+      if (process.env.ENABLE_CRON_JOBS === 'true') {
+        scheduleCompletedEventsJob();
+        scheduleAutoRejectEventsJob();
+        console.log('Scheduled jobs started');
+        
+        // Haber süresi kontrol servisini başlat
+        newsExpiryChecker.start();
+      }
     });
-    
-    // Haber süresi kontrol servisini başlat
-    newsExpiryChecker.start();
     
     return server;
   } catch (error) {
@@ -108,9 +122,15 @@ const startServer = async () => {
   }
 };
 
-// Server'ı başlat
-startServer()
-  .then(() => console.log('Server başarıyla başlatıldı'))
-  .catch(err => console.error('Server başlatılamadı:', err));
+// Vercel serverless fonksiyon için Lambda tarzı yaklaşım
+if (process.env.NODE_ENV === 'production') {
+  // Lambda tarzı çalışırken cron işlerini etkinleştirme
+  process.env.ENABLE_CRON_JOBS = 'false';
+} else {
+  // Server'ı başlat
+  startServer()
+    .then(() => console.log('Server başarıyla başlatıldı'))
+    .catch(err => console.error('Server başlatılamadı:', err));
+}
 
 export default app;

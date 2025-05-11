@@ -2,11 +2,12 @@
   "name": "sportlink-web-backend",
   "version": "1.0.0",
   "description": "Sportlink Web Backend",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
+    "vercel-build": "node build.js",
     "lint": "eslint . --ext .ts",
     "test": "jest",
     "docs": "swagger-jsdoc -d swaggerDef.js -o swagger.json && swagger-ui-express swagger.json"
@@ -69,5 +70,8 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=18.x"
   }
 }

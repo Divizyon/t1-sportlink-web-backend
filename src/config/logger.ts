@@ -9,10 +9,10 @@ const logger = createLogger({
     format.json()
   ),
   defaultMeta: { service: 'user-service' },
-  transports: [
-    new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new transports.File({ filename: 'logs/combined.log' })
-  ]
+  // transports: [
+  //   new transports.File({ filename: 'logs/error.log', level: 'error' }),
+  //   new transports.File({ filename: 'logs/combined.log' })
+  // ]
 });
 
 if (process.env.NODE_ENV !== 'production') {
