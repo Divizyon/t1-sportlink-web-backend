@@ -231,3 +231,8 @@ export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
 
   next();
 };
+
+// routes/index.ts tarafından kullanılan alias'lar
+export const authenticate = protect;
+export const requireAuth = protect;
+export const requireAdmin = isAdmin;

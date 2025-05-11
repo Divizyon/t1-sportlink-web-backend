@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { jest } from '@jest/globals';
 
 declare global {
     namespace NodeJS {
@@ -6,6 +7,11 @@ declare global {
             TEST_SERVER_URL: string;
         }
     }
+}
+
+// Obje tipini tanımlanmış bir global için düzelt
+declare global {
+    var TEST_SERVER_URL: string;
 }
 
 // Test ortamı için .env dosyasını yükle
