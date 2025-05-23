@@ -84,7 +84,17 @@ export const findEventById = async (id: string): Promise<any> => {
           last_name,
           role
         ),
-        participants:Event_Participants(count)
+        participants:Event_Participants(
+          user_id,
+          role,
+          joined_at,
+          user:users(
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        )
       `)
       .eq('id', id)
       .single();
@@ -105,7 +115,20 @@ export const findEventById = async (id: string): Promise<any> => {
     });
     
     // Standart formata dönüştür
-    return formatEvent(data);
+    return {
+      ...formatEvent(data),
+      participants: data.participants ? data.participants.map((participant: any) => ({
+        user_id: participant.user_id,
+        role: participant.role,
+        joined_at: participant.joined_at,
+        user: {
+          id: participant.user.id,
+          first_name: participant.user.first_name,
+          last_name: participant.user.last_name,
+          email: participant.user.email
+        }
+      })) : []
+    };
   } catch (error) {
     if (error instanceof EventNotFoundError) {
       throw error;
@@ -503,7 +526,17 @@ export const getAllEvents = async () => {
           last_name,
           role
         ),
-        participants:Event_Participants(count)
+        participants:Event_Participants(
+          user_id,
+          role,
+          joined_at,
+          user:users(
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        )
       `)
       .order('event_date', { ascending: true });
     
@@ -518,7 +551,20 @@ export const getAllEvents = async () => {
     }
     
     logger.info(`${data.length} etkinlik bulundu`);
-    return data.map(event => formatEvent(event));
+    return data.map(event => ({
+      ...formatEvent(event),
+      participants: event.participants ? event.participants.map((participant: any) => ({
+        user_id: participant.user_id,
+        role: participant.role,
+        joined_at: participant.joined_at,
+        user: {
+          id: participant.user.id,
+          first_name: participant.user.first_name,
+          last_name: participant.user.last_name,
+          email: participant.user.email
+        }
+      })) : []
+    }));
   } catch (error) {
     logger.error('getAllEvents hatası:', error);
     throw error;
@@ -588,7 +634,17 @@ export const getTodayEvents = async (
           last_name,
           role
         ),
-        participants:Event_Participants(count)
+        participants:Event_Participants(
+          user_id,
+          role,
+          joined_at,
+          user:users(
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        )
       `)
       .gte('event_date', startOfToday.toISOString())
       .lte('event_date', endOfToday.toISOString())
@@ -605,7 +661,20 @@ export const getTodayEvents = async (
     if (!events) return { events: [], totalEvents: 0, totalPages: 0 };
     
     // Standart formatta tüm etkinlikleri döndür
-    const formattedEvents = events.map(event => formatEvent(event));
+    const formattedEvents = events.map(event => ({
+      ...formatEvent(event),
+      participants: event.participants ? event.participants.map((participant: any) => ({
+        user_id: participant.user_id,
+        role: participant.role,
+        joined_at: participant.joined_at,
+        user: {
+          id: participant.user.id,
+          first_name: participant.user.first_name,
+          last_name: participant.user.last_name,
+          email: participant.user.email
+        }
+      })) : []
+    }));
     
     return {
       events: formattedEvents,
@@ -934,7 +1003,22 @@ export const getEventsByStatus = async (
     // Sorgu oluşturucu - supabaseAdmin kullan (RLS bypass)
     let query = supabaseAdmin
       .from('Events')
-      .select('*, sport:Sports!Events_sport_id_fkey(name), creator:users!Events_creator_id_fkey(first_name, last_name), participants:Event_Participants(user_id)', { count: 'exact' })
+      .select(`
+        *,
+        sport:Sports!Events_sport_id_fkey(name),
+        creator:users!Events_creator_id_fkey(first_name, last_name),
+        participants:Event_Participants(
+          user_id,
+          role,
+          joined_at,
+          user:users(
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        )
+      `, { count: 'exact' })
       .eq('status', uppercaseStatus) // Büyük harfli status ile karşılaştır
       .order('created_at', { ascending: false });
     
@@ -977,7 +1061,18 @@ export const getEventsByStatus = async (
       updated_at: event.updated_at,
       sport: event.sport,
       creator: event.creator,
-      participant_count: event.participants ? event.participants.length : 0
+      participant_count: event.participants ? event.participants.length : 0,
+      participants: event.participants ? event.participants.map((participant: any) => ({
+        user_id: participant.user_id,
+        role: participant.role,
+        joined_at: participant.joined_at,
+        user: {
+          id: participant.user.id,
+          first_name: participant.user.first_name,
+          last_name: participant.user.last_name,
+          email: participant.user.email
+        }
+      })) : []
     }));
     
     return {
